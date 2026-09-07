@@ -1,0 +1,1869 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#060b16">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="منظومة المبيعات">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>منظومة إدارة أهداف وعمولات المبيعات السحابية - الفروع والمندوبين</title>
+  
+  <!-- Web App Manifest for Android Installation -->
+  <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22%D9%85%D9%86%D8%B8%D9%88%D9%85%D8%A9%20%D8%B9%D9%85%D9%88%D9%84%D8%A7%D8%AA%20%D8%A7%D9%84%D9%85%D8%A8%D9%8A%D8%B9%D8%A7%D8%AA%22%2C%22short_name%22%3A%22%D8%A7%D9%84%D8%B9%D9%85%D9%88%D9%84%D8%A7%D8%AA%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23060b16%22%2C%22theme_color%22%3A%22%23060b16%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22https%3A%2F%2Fplacehold.co%2F512x512%2F10b981%2Fffffff%3Ftext%3DSALES%22%2C%22sizes%22%3A%22512x512%22%2C%22type%22%3A%22image%2Fpng%22%7D%5D%7D">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React & ReactDOM CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <!-- Babel Compiler -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Chart.js for Advanced Visualizations -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Google Cairo Typography -->
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    window.__FIREBASE_MODULES__ = {
+      initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged,
+      getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection
+    };
+    window.dispatchEvent(new Event('firebase-sdk-ready'));
+  </script>
+
+  <style>
+    body { font-family: 'Cairo', sans-serif; background-color: #060b16; color: #f8fafc; -webkit-tap-highlight-color: transparent; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0b1324; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #334155; }
+    
+    .sticky-col-1 { position: sticky; right: 0; z-index: 20; }
+    .sticky-col-2 { position: sticky; right: 46px; z-index: 20; }
+    
+    @media print {
+      body { background: white !important; color: black !important; }
+      .no-print { display: none !important; }
+      .print-only { display: block !important; }
+      .printable-card { border: 1px solid #cbd5e1 !important; box-shadow: none !important; color: black !important; background: white !important; }
+    }
+    .print-only { display: none; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen selection:bg-emerald-500 selection:text-slate-950">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo, useEffect, useRef } = React;
+
+    // Фروع الشركة الافتراضية
+    const DEFAULT_BRANCHES = [
+      { id: 'b_center', name: 'الفرع الرئيسي - الإدارة العامة' },
+      { id: 'b_north', name: 'فرع المنطقة الشمالية (صنعاء وعمران)' },
+      { id: 'b_south', name: 'فرع المنطقة الجنوبية (عدن ولحج)' },
+      { id: 'b_west', name: 'فرع المنطقة الغربية (الحديدة وتعز)' }
+    ];
+
+    // قاعدة بيانات المستخدمين وكلمات المرور والصلاحيات
+    const DEFAULT_USERS = [
+      { username: 'admin', password: '123', role: 'admin', name: 'سعادة المدير التنفيذي العام', branchId: 'b_center', phone: '770000000' },
+      { username: 'finance', password: '123', role: 'finance', name: 'المدقق والمحاسب المالي', branchId: 'b_center', phone: '771111111' },
+      
+      // مشرفين فروع
+      { username: 'super_north', password: '123', role: 'supervisor', name: 'مشرف مبيعات الشمال (أ. فؤاد)', branchId: 'b_north', supervisedRepIds: [14, 15, 16, 18, 19] },
+      { username: 'super_south', password: '123', role: 'supervisor', name: 'مشرف مبيعات الجنوب (أ. رضوان)', branchId: 'b_south', supervisedRepIds: [20, 21, 35, 23, 36] },
+      { username: 'super_west', password: '123', role: 'supervisor', name: 'مشرف مبيعات الغربية (أ. هشام)', branchId: 'b_west', supervisedRepIds: [38, 9, 1, 100, 10002, 10011, 10052] },
+
+      // حسابات المندوبين الشخصية بكلمة مرور واسم مستخدم مستقل
+      { username: 'rep14', password: '123', role: 'rep', repId: 14, name: 'سليمان سيف', branchId: 'b_north' },
+      { username: 'rep15', password: '123', role: 'rep', repId: 15, name: 'صلاح عبيد', branchId: 'b_north' },
+      { username: 'rep16', password: '123', role: 'rep', repId: 16, name: 'احمد عماد', branchId: 'b_north' },
+      { username: 'rep18', password: '123', role: 'rep', repId: 18, name: 'عمر حزام', branchId: 'b_north' },
+      { username: 'rep19', password: '123', role: 'rep', repId: 19, name: 'منير العريج', branchId: 'b_north' },
+      
+      { username: 'rep20', password: '123', role: 'rep', repId: 20, name: 'محمد الحضرمي', branchId: 'b_south' },
+      { username: 'rep21', password: '123', role: 'rep', repId: 21, name: 'خالد قعطبي', branchId: 'b_south' },
+      { username: 'rep35', password: '123', role: 'rep', repId: 35, name: 'حازم ماطري', branchId: 'b_south' },
+      { username: 'rep23', password: '123', role: 'rep', repId: 23, name: 'زايد الهميس', branchId: 'b_south' },
+      { username: 'rep36', password: '123', role: 'rep', repId: 36, name: 'معتصم المخلافي', branchId: 'b_south' },
+      
+      { username: 'rep38', password: '123', role: 'rep', repId: 38, name: 'محمد غالب الشرعبي', branchId: 'b_west' },
+      { username: 'rep9', password: '123', role: 'rep', repId: 9, name: 'اشرف الصبري', branchId: 'b_west' },
+      { username: 'rep1', password: '123', role: 'rep', repId: 1, name: 'مبيعات عام', branchId: 'b_west' },
+      { username: 'rep100', password: '123', role: 'rep', repId: 100, name: 'مندوب عميل ياسر هزازي', branchId: 'b_west' },
+      { username: 'rep10002', password: '123', role: 'rep', repId: 10002, name: 'علي محمد كابن', branchId: 'b_west' },
+      { username: 'rep10011', password: '123', role: 'rep', repId: 10011, name: 'سيد عابد', branchId: 'b_west' },
+      { username: 'rep10052', password: '123', role: 'rep', repId: 10052, name: 'احمد مصطفى', branchId: 'b_west' }
+    ];
+
+    const AUGUST_DEFAULT = {
+      periodKey: 'august',
+      periodName: 'ختام شهر أغسطس 2026 (النهائي المعتمد)',
+      periodShort: 'أغسطس 2026',
+      dateLabel: 'إقفال نهائي: 31-08-2026',
+      generalThresholdPct: 80,
+      generalTargetCommValue: 0,
+      minGroupsRequired: 7,
+      isApproved: true,
+      approvedBy: 'المدير العام - اعتماد مالي نهائي',
+      groupRules: [
+        { id: 'g0', code: '501', name: "شوكلاتة ايجلو", thresholdPct: 70, commType: 'fixed', commValue: 250 },
+        { id: 'g1', code: '210', name: "بيكاديلي /ديجستف", thresholdPct: 70, commType: 'fixed', commValue: 250 },
+        { id: 'g2', code: '2010', name: "البقوليات + قشطة", thresholdPct: 70, commType: 'fixed', commValue: 250 },
+        { id: 'g3', code: '70', name: "الطاقة", thresholdPct: 70, commType: 'fixed', commValue: 250 },
+        { id: 'g4', code: '205', name: "زيت زيتون + طحينة", thresholdPct: 70, commType: 'fixed', commValue: 300 },
+        { id: 'g5', code: '40', name: "جيلي جلب + كوزو", thresholdPct: 70, commType: 'fixed', commValue: 250 },
+        { id: 'g6', code: '206', name: "رز فايف ستار", thresholdPct: 70, commType: 'fixed', commValue: 150 },
+        { id: 'g7', code: '82', name: "بيسكوزا + سما فود", thresholdPct: 70, commType: 'fixed', commValue: 400 },
+        { id: 'g8', code: '150', name: "اكسيلو", thresholdPct: 70, commType: 'fixed', commValue: 300 },
+        { id: 'g9', code: '3010', name: "عماني/دريم واي", thresholdPct: 70, commType: 'fixed', commValue: 200 },
+        { id: 'g10', code: '215', name: "عسل", thresholdPct: 70, commType: 'fixed', commValue: 250 },
+        { id: 'g11', code: '800', name: "تشوبا تشوبس", thresholdPct: 70, commType: 'fixed', commValue: 250 },
+        { id: 'g12', code: '83', name: "كنجسي", thresholdPct: 70, commType: 'fixed', commValue: 250 },
+        { id: 'g13', code: '180', name: "سن لوب", thresholdPct: 70, commType: 'fixed', commValue: 250 }
+      ],
+      repsData: [
+        { id: 14, name: "سليمان سيف", branchId: 'b_north', generalTarget: 800000, generalSales: 700410, groups: [ { target: 100000, sales: 135364 }, { target: 30000, sales: 13966 }, { target: 325000, sales: 266960 }, { target: 150000, sales: 184875 }, { target: 70000, sales: 61357 }, { target: 8000, sales: 6234 }, { target: 5000, sales: 6300 }, { target: 20000, sales: -1520 }, { target: 20000, sales: 19917 }, { target: 5000, sales: 6020 }, { target: 7000, sales: 0 }, { target: 5000, sales: 4413 }, { target: 10000, sales: 2248 }, { target: 3000, sales: 0 } ] },
+        { id: 15, name: "صلاح عبيد", branchId: 'b_north', generalTarget: 400000, generalSales: 379515, groups: [ { target: 80000, sales: 129081 }, { target: 50000, sales: 27620 }, { target: 50000, sales: 47572 }, { target: 50000, sales: 69618 }, { target: 40000, sales: 32530 }, { target: 8000, sales: 1170 }, { target: 10000, sales: 8161 }, { target: 20000, sales: 7657 }, { target: 20000, sales: 2863 }, { target: 10000, sales: 16472 }, { target: 5000, sales: 4147 }, { target: 12000, sales: 781 }, { target: 15000, sales: 11476 }, { target: 4000, sales: 5588 } ] },
+        { id: 16, name: "احمد عماد", branchId: 'b_north', generalTarget: 300000, generalSales: 282196, groups: [ { target: 80000, sales: 108310 }, { target: 20000, sales: 18908 }, { target: 30000, sales: 30080 }, { target: 30000, sales: 24820 }, { target: 25000, sales: 35275 }, { target: 8000, sales: 6450 }, { target: 5000, sales: -3775 }, { target: 20000, sales: 8600 }, { target: 15000, sales: 13000 }, { target: 5000, sales: 4496 }, { target: 5000, sales: 1204 }, { target: 12000, sales: -1417 }, { target: 40000, sales: 32922 }, { target: 4000, sales: 6300 } ] },
+        { id: 18, name: "عمر حزام", branchId: 'b_north', generalTarget: 500000, generalSales: 452167, groups: [ { target: 80000, sales: 115796 }, { target: 50000, sales: 24332 }, { target: 50000, sales: 45235 }, { target: 150000, sales: 123643 }, { target: 25000, sales: 4630 }, { target: 8000, sales: 7461 }, { target: 15000, sales: -3180 }, { target: 25000, sales: 20502 }, { target: 20000, sales: 3900 }, { target: 10000, sales: 4314 }, { target: 5000, sales: 4013 }, { target: 12000, sales: -7268 }, { target: 50000, sales: 83172 }, { target: 4000, sales: 4277 } ] },
+        { id: 19, name: "منير العريج", branchId: 'b_north', generalTarget: 400000, generalSales: 403318, groups: [ { target: 185000, sales: 193408 }, { target: 15000, sales: 12781 }, { target: 0, sales: 0 }, { target: 10000, sales: 8585 }, { target: 15000, sales: 18000 }, { target: 8000, sales: 3548 }, { target: 0, sales: 0 }, { target: 25000, sales: 20488 }, { target: 30000, sales: 31000 }, { target: 10000, sales: 12740 }, { target: 0, sales: 0 }, { target: 20000, sales: 18000 }, { target: 85000, sales: 84768 }, { target: 4000, sales: 0 } ] },
+        { id: 20, name: "محمد الحضرمي", branchId: 'b_south', generalTarget: 350000, generalSales: 336398, groups: [ { target: 150000, sales: 161560 }, { target: 75000, sales: 73789 }, { target: 10000, sales: 9059 }, { target: 10000, sales: 13090 }, { target: 12000, sales: 10105 }, { target: 8000, sales: 2090 }, { target: 5000, sales: 9600 }, { target: 10000, sales: 8334 }, { target: 10000, sales: 9082 }, { target: 25000, sales: 33504 }, { target: 5000, sales: 675 }, { target: 5000, sales: -69 }, { target: 15000, sales: 15440 }, { target: 4000, sales: -625 } ] },
+        { id: 21, name: "خالد قعطبي", branchId: 'b_south', generalTarget: 500000, generalSales: 548409, groups: [ { target: 130000, sales: 184108 }, { target: 75000, sales: 70562 }, { target: 25000, sales: 35725 }, { target: 75000, sales: 60520 }, { target: 45000, sales: 44028 }, { target: 8000, sales: 6329 }, { target: 5000, sales: 7342 }, { target: 10000, sales: 5668 }, { target: 20000, sales: 23400 }, { target: 15000, sales: 17888 }, { target: 5000, sales: 4511 }, { target: 5000, sales: 6262 }, { target: 40000, sales: 48408 }, { target: 4000, sales: 0 } ] },
+        { id: 35, name: "حازم ماطري", branchId: 'b_south', generalTarget: 500000, generalSales: 526180, groups: [ { target: 100000, sales: 187358 }, { target: 75000, sales: 76972 }, { target: 25000, sales: 25822 }, { target: 80000, sales: 69105 }, { target: 20000, sales: 16728 }, { target: 8000, sales: 3376 }, { target: 10000, sales: 6790 }, { target: 15000, sales: 26215 }, { target: 20000, sales: 16196 }, { target: 15000, sales: 24849 }, { target: 5000, sales: 4525 }, { target: 15000, sales: 29400 }, { target: 15000, sales: 22723 }, { target: 4000, sales: 6340 } ] },
+        { id: 23, name: "زايد الهميس", branchId: 'b_south', generalTarget: 775000, generalSales: 749623, groups: [ { target: 200000, sales: 201570 }, { target: 60000, sales: 66825 }, { target: 65000, sales: 52206 }, { target: 275000, sales: 238702 }, { target: 30000, sales: 24170 }, { target: 8000, sales: 10000 }, { target: 10000, sales: -10588 }, { target: 20000, sales: 3399 }, { target: 20000, sales: 29200 }, { target: 30000, sales: 46707 }, { target: 5000, sales: 4840 }, { target: 40000, sales: 53875 }, { target: 15000, sales: 17144 }, { target: 3000, sales: 3600 } ] },
+        { id: 36, name: "معتصم المخلافي", branchId: 'b_south', generalTarget: 425000, generalSales: 436663, groups: [ { target: 150000, sales: 194175 }, { target: 10000, sales: 8033 }, { target: 40000, sales: 16327 }, { target: 90000, sales: 118105 }, { target: 20000, sales: 1800 }, { target: 8000, sales: 2247 }, { target: 10000, sales: 8176 }, { target: 20000, sales: 17433 }, { target: 20000, sales: 19800 }, { target: 30000, sales: 28168 }, { target: 5000, sales: 0 }, { target: 10000, sales: 17250 }, { target: 15000, sales: 2640 }, { target: 3000, sales: 2712 } ] },
+        { id: 38, name: "محمد غالب الشرعبي", branchId: 'b_west', generalTarget: 290000, generalSales: 287862, groups: [ { target: 75000, sales: 116878 }, { target: 50000, sales: 43383 }, { target: 35000, sales: 33423 }, { target: 5000, sales: 4675 }, { target: 20000, sales: 17354 }, { target: 8000, sales: 6005 }, { target: 30000, sales: 28312 }, { target: 10000, sales: 17583 }, { target: 20000, sales: 6696 }, { target: 10000, sales: 7400 }, { target: 5000, sales: 4085 }, { target: 5000, sales: 6627 }, { target: 10000, sales: 2443 }, { target: 4000, sales: 840 } ] },
+        { id: 9, name: "اشرف الصبري", branchId: 'b_west', generalTarget: 325000, generalSales: 301942, groups: [ { target: 75000, sales: 113470 }, { target: 50000, sales: 67937 }, { target: 30000, sales: 15068 }, { target: 5000, sales: 85 }, { target: 20000, sales: 6450 }, { target: 8000, sales: 4547 }, { target: 30000, sales: 30513 }, { target: 15000, sales: 25693 }, { target: 20000, sales: 4398 }, { target: 10000, sales: 15319 }, { target: 5000, sales: 4242 }, { target: 5000, sales: 4310 }, { target: 10000, sales: 8076 }, { target: 4000, sales: 2370 } ] },
+        { id: 1, name: "مبيعات عام", branchId: 'b_west', generalTarget: 175000, generalSales: 302515, groups: [ { target: 50000, sales: 70171 }, { target: 25000, sales: 38690 }, { target: 30000, sales: 146824 }, { target: 18000, sales: 13730 }, { target: 0, sales: 244 }, { target: 0, sales: 5343 }, { target: 0, sales: 107 }, { target: 0, sales: 6630 }, { target: 10000, sales: 2362 }, { target: 20000, sales: 11517 }, { target: 0, sales: 2250 }, { target: 0, sales: 834 }, { target: 25000, sales: 362 }, { target: 0, sales: 3 } ] },
+        { id: 100, name: "مندوب عميل ياسر هزازي", branchId: 'b_west', generalTarget: 75000, generalSales: 87932, groups: [ { target: 50000, sales: 12420 }, { target: 0, sales: 0 }, { target: 25000, sales: 14880 }, { target: 50000, sales: 44572 }, { target: 0, sales: 0 }, { target: 0, sales: 0 }, { target: 0, sales: 12480 }, { target: 0, sales: 2610 }, { target: 0, sales: 970 }, { target: 0, sales: 0 }, { target: 0, sales: 0 }, { target: 0, sales: 0 }, { target: 0, sales: 0 }, { target: 0, sales: 0 } ] },
+        { id: 10002, name: "علي محمد كابن", branchId: 'b_west', generalTarget: 50000, generalSales: 31396, groups: [ { target: 15000, sales: 13568 }, { target: 5000, sales: 828 }, { target: 2500, sales: 138 }, { target: 2000, sales: 768 }, { target: 3000, sales: 590 }, { target: 2000, sales: 206 }, { target: 2000, sales: 7368 }, { target: 2000, sales: 268 }, { target: 2000, sales: 2122 }, { target: 1000, sales: 200 }, { target: 1000, sales: 209 }, { target: 1500, sales: 307 }, { target: 2000, sales: 262 }, { target: 2000, sales: 3940 } ] },
+        { id: 10011, name: "سيد عابد", branchId: 'b_west', generalTarget: 50000, generalSales: 41867, groups: [ { target: 15000, sales: 19711 }, { target: 5000, sales: 3642 }, { target: 2500, sales: 3466 }, { target: 2000, sales: 2304 }, { target: 3000, sales: 1467 }, { target: 2000, sales: 457 }, { target: 2000, sales: 1226 }, { target: 2000, sales: 836 }, { target: 2000, sales: 3463 }, { target: 1000, sales: 2342 }, { target: 1000, sales: 936 }, { target: 1500, sales: 85 }, { target: 2000, sales: 1618 }, { target: 2000, sales: 188 } ] },
+        { id: 10052, name: "احمد مصطفى", branchId: 'b_west', generalTarget: 80000, generalSales: 64743, groups: [ { target: 25000, sales: 26733 }, { target: 5000, sales: 4842 }, { target: 5000, sales: 2751 }, { target: 3000, sales: 1912 }, { target: 2000, sales: 3135 }, { target: 2000, sales: 512 }, { target: 36000, sales: 15727 }, { target: 2000, sales: 1060 }, { target: 2000, sales: 3162 }, { target: 3000, sales: 1279 }, { target: 1000, sales: 1198 }, { target: 1000, sales: 855 }, { target: 2000, sales: 813 }, { target: 2000, sales: 750 } ] }
+      ]
+    };
+
+    const SEPTEMBER_DEFAULT = {
+      periodKey: 'september',
+      periodName: 'متابعة شهر سبتمبر 2026 (الجارية)',
+      periodShort: 'سبتمبر 2026',
+      dateLabel: 'متابعة حية ومحدثة سحابياً',
+      generalThresholdPct: 80,
+      generalTargetCommValue: 500,
+      minGroupsRequired: 10,
+      isApproved: false,
+      approvedBy: null,
+      groupRules: [
+        { id: 's0', code: '501', name: "شوكلاتة ايجلو", thresholdPct: 70, commType: 'fixed', commValue: 250 },
+        { id: 's1', code: '210', name: "بيكاديلي /ديجستف", thresholdPct: 70, commType: 'fixed', commValue: 250 },
+        { id: 's2', code: '2010', name: "البقوليات + قشطة", thresholdPct: 70, commType: 'fixed', commValue: 250 },
+        { id: 's3', code: '70', name: "الطاقة", thresholdPct: 70, commType: 'fixed', commValue: 250 },
+        { id: 's4', code: '205', name: "زيت زيتون", thresholdPct: 70, commType: 'fixed', commValue: 300 },
+        { id: 's5', code: '40', name: "جيلي جلب + كوزو", thresholdPct: 70, commType: 'fixed', commValue: 250 },
+        { id: 's6', code: '206', name: "رز + صلصة او معجون", thresholdPct: 70, commType: 'fixed', commValue: 150 },
+        { id: 's7', code: '82', name: "بيسكوزا + سما فود", thresholdPct: 70, commType: 'fixed', commValue: 400 },
+        { id: 's8', code: '150', name: "اكسيلو", thresholdPct: 70, commType: 'fixed', commValue: 300 },
+        { id: 's9', code: '3010', name: "عماني دريم واي وبموسي", thresholdPct: 70, commType: 'fixed', commValue: 200 },
+        { id: 's10', code: '215', name: "عسل", thresholdPct: 70, commType: 'fixed', commValue: 200 },
+        { id: 's11', code: '800', name: "تشوبا تشوبس", thresholdPct: 70, commType: 'fixed', commValue: 200 },
+        { id: 's12', code: '83', name: "كنجسي", thresholdPct: 70, commType: 'fixed', commValue: 200 },
+        { id: 's13', code: '180', name: "سن لوب", thresholdPct: 70, commType: 'fixed', commValue: 200 },
+        { id: 's14', code: '2040', name: "طحينة فاخرة", thresholdPct: 70, commType: 'fixed', commValue: 200 }
+      ],
+      repsData: [
+        { id: 14, name: "سليمان سيف", branchId: 'b_north', generalTarget: 700000, generalSales: 174792, groups: [ { target: 125000, sales: 14570 }, { target: 15000, sales: 0 }, { target: 300000, sales: 150233 }, { target: 80000, sales: 0 }, { target: 50000, sales: 0 }, { target: 6000, sales: 0 }, { target: 15000, sales: 0 }, { target: 20000, sales: 0 }, { target: 25000, sales: 0 }, { target: 15000, sales: 0 }, { target: 7000, sales: 0 }, { target: 15000, sales: 0 }, { target: 10000, sales: 0 }, { target: 7000, sales: 0 }, { target: 15000, sales: 10160 } ] },
+        { id: 15, name: "صلاح عبيد", branchId: 'b_north', generalTarget: 400000, generalSales: 49108, groups: [ { target: 95000, sales: -912 }, { target: 30000, sales: 0 }, { target: 50000, sales: 51480 }, { target: 50000, sales: -333 }, { target: 40000, sales: -78 }, { target: 6000, sales: 0 }, { target: 10000, sales: -1050 }, { target: 20000, sales: 0 }, { target: 30000, sales: 0 }, { target: 20000, sales: 0 }, { target: 5000, sales: 0 }, { target: 15000, sales: 0 }, { target: 15000, sales: 0 }, { target: 7000, sales: 0 }, { target: 7000, sales: 0 } ] },
+        { id: 16, name: "احمد عماد", branchId: 'b_north', generalTarget: 300000, generalSales: -1144, groups: [ { target: 70000, sales: -192 }, { target: 20000, sales: 0 }, { target: 20000, sales: 0 }, { target: 30000, sales: 0 }, { target: 25000, sales: -592 }, { target: 7000, sales: 0 }, { target: 10000, sales: 0 }, { target: 20000, sales: 0 }, { target: 20000, sales: 0 }, { target: 15000, sales: 0 }, { target: 5000, sales: 0 }, { target: 15000, sales: 0 }, { target: 40000, sales: 0 }, { target: 7000, sales: -360 }, { target: 5000, sales: 0 } ] },
+        { id: 18, name: "عمر حزام", branchId: 'b_north', generalTarget: 500000, generalSales: 81125, groups: [ { target: 80000, sales: 791 }, { target: 30000, sales: 3638 }, { target: 60000, sales: 22807 }, { target: 125000, sales: 7650 }, { target: 25000, sales: 1200 }, { target: 7000, sales: -120 }, { target: 10000, sales: 529 }, { target: 25000, sales: 5519 }, { target: 30000, sales: 9600 }, { target: 20000, sales: 1538 }, { target: 5000, sales: 500 }, { target: 15000, sales: 390 }, { target: 60000, sales: 24838 }, { target: 7000, sales: 780 }, { target: 7000, sales: 1270 } ] },
+        { id: 19, name: "منير العريج", branchId: 'b_north', generalTarget: 450000, generalSales: 115111, groups: [ { target: 200000, sales: 83173 }, { target: 13000, sales: 0 }, { target: 0, sales: 0 }, { target: 10000, sales: 0 }, { target: 15000, sales: 0 }, { target: 7000, sales: 0 }, { target: 0, sales: 28 }, { target: 30000, sales: 5760 }, { target: 40000, sales: 7011 }, { target: 30000, sales: 980 }, { target: 0, sales: 0 }, { target: 20000, sales: 8050 }, { target: 70000, sales: 10110 }, { target: 8000, sales: 0 }, { target: 10000, sales: 0 } ] },
+        { id: 20, name: "محمد الحضرمي", branchId: 'b_south', generalTarget: 350000, generalSales: 37362, groups: [ { target: 140000, sales: 17312 }, { target: 65000, sales: 6112 }, { target: 10000, sales: 5194 }, { target: 10000, sales: 0 }, { target: 12000, sales: 295 }, { target: 7000, sales: 0 }, { target: 10000, sales: 6859 }, { target: 15000, sales: -285 }, { target: 15000, sales: 0 }, { target: 30000, sales: -561 }, { target: 5000, sales: 0 }, { target: 8000, sales: 0 }, { target: 15000, sales: 0 }, { target: 8000, sales: 0 }, { target: 0, sales: 0 } ] },
+        { id: 21, name: "خالد قعطبي", branchId: 'b_south', generalTarget: 425000, generalSales: 122081, groups: [ { target: 140000, sales: 61680 }, { target: 60000, sales: 14559 }, { target: 25000, sales: 2616 }, { target: 25000, sales: 170 }, { target: 35000, sales: 940 }, { target: 7000, sales: 0 }, { target: 10000, sales: 786 }, { target: 10000, sales: 463 }, { target: 30000, sales: 8896 }, { target: 20000, sales: 7342 }, { target: 5000, sales: 2300 }, { target: 10000, sales: 200 }, { target: 30000, sales: 8660 }, { target: 8000, sales: 0 }, { target: 10000, sales: 0 } ] },
+        { id: 35, name: "حازم ماطري", branchId: 'b_south', generalTarget: 475000, generalSales: 121230, groups: [ { target: 175000, sales: 56879 }, { target: 60000, sales: 4060 }, { target: 25000, sales: 36186 }, { target: 40000, sales: 0 }, { target: 20000, sales: 0 }, { target: 10000, sales: 0 }, { target: 15000, sales: 5000 }, { target: 15000, sales: 5730 }, { target: 35000, sales: 10000 }, { target: 15000, sales: 0 }, { target: 5000, sales: 3375 }, { target: 20000, sales: 0 }, { target: 15000, sales: 0 }, { target: 8000, sales: 0 }, { target: 15000, sales: 0 } ] },
+        { id: 23, name: "زايد الهميس", branchId: 'b_south', generalTarget: 800000, generalSales: 204559, groups: [ { target: 210000, sales: 134580 }, { target: 50000, sales: 40150 }, { target: 65000, sales: 22451 }, { target: 225000, sales: 0 }, { target: 30000, sales: 0 }, { target: 15000, sales: 0 }, { target: 15000, sales: 0 }, { target: 30000, sales: 5250 }, { target: 40000, sales: 1600 }, { target: 30000, sales: 288 }, { target: 5000, sales: 0 }, { target: 45000, sales: 0 }, { target: 20000, sales: 240 }, { target: 8000, sales: 0 }, { target: 15000, sales: 0 } ] },
+        { id: 36, name: "معتصم المخلافي", branchId: 'b_south', generalTarget: 400000, generalSales: 118718, groups: [ { target: 115000, sales: 110168 }, { target: 50000, sales: 665 }, { target: 40000, sales: 0 }, { target: 80000, sales: 0 }, { target: 20000, sales: 0 }, { target: 10000, sales: 170 }, { target: 15000, sales: 0 }, { target: 20000, sales: 5735 }, { target: 15000, sales: 1500 }, { target: 30000, sales: 0 }, { target: 5000, sales: 0 }, { target: 15000, sales: 0 }, { target: 15000, sales: 720 }, { target: 7000, sales: -240 }, { target: 10000, sales: 0 } ] },
+        { id: 38, name: "محمد غالب الشرعبي", branchId: 'b_west', generalTarget: 275000, generalSales: 100017, groups: [ { target: 70000, sales: 54853 }, { target: 40000, sales: 13018 }, { target: 35000, sales: -136 }, { target: 5000, sales: 0 }, { target: 10000, sales: 10330 }, { target: 8000, sales: 100 }, { target: 30000, sales: 2062 }, { target: 20000, sales: 12123 }, { target: 15000, sales: 2412 }, { target: 10000, sales: 0 }, { target: 5000, sales: 305 }, { target: 8000, sales: 480 }, { target: 10000, sales: 4056 }, { target: 10000, sales: 240 }, { target: 0, sales: 0 } ] },
+        { id: 9, name: "اشرف الصبري", branchId: 'b_west', generalTarget: 300000, generalSales: 58814, groups: [ { target: 80000, sales: 28393 }, { target: 50000, sales: 13068 }, { target: 30000, sales: 1102 }, { target: 5000, sales: 0 }, { target: 10000, sales: 170 }, { target: 8000, sales: 250 }, { target: 30000, sales: 0 }, { target: 20000, sales: 14135 }, { target: 15000, sales: 200 }, { target: 10000, sales: 100 }, { target: 5000, sales: 500 }, { target: 8000, sales: 0 }, { target: 20000, sales: 1136 }, { target: 10000, sales: -240 }, { target: 0, sales: 0 } ] },
+        { id: 1, name: "مبيعات عام", branchId: 'b_west', generalTarget: 150000, generalSales: 612882, groups: [ { target: 45000, sales: 313 }, { target: 50000, sales: 8 }, { target: 50000, sales: 140173 }, { target: 15000, sales: 469565 }, { target: 0, sales: 70 }, { target: 0, sales: 0 }, { target: 0, sales: 100 }, { target: 0, sales: 0 }, { target: 10000, sales: 210 }, { target: 20000, sales: 56 }, { target: 0, sales: 0 }, { target: 0, sales: 0 }, { target: 25000, sales: 45 }, { target: 0, sales: 0 }, { target: 0, sales: 0 } ] },
+        { id: 100, name: "مندوب عميل ياسر هزازي", branchId: 'b_west', generalTarget: 130000, generalSales: 6046, groups: [ { target: 50000, sales: 0 }, { target: 0, sales: 950 }, { target: 30000, sales: 5096 }, { target: 50000, sales: 0 }, { target: 0, sales: 0 }, { target: 0, sales: 0 }, { target: 0, sales: 0 }, { target: 0, sales: 0 }, { target: 0, sales: 0 }, { target: 0, sales: 0 }, { target: 0, sales: 0 }, { target: 0, sales: 0 }, { target: 0, sales: 0 }, { target: 0, sales: 0 }, { target: 0, sales: 0 } ] },
+        { id: 10002, name: "علي محمد كابن", branchId: 'b_west', generalTarget: 45000, generalSales: 4432, groups: [ { target: 15000, sales: 1905 }, { target: 5000, sales: 37 }, { target: 2500, sales: 69 }, { target: 3000, sales: 192 }, { target: 3000, sales: 1163 }, { target: 3000, sales: 0 }, { target: 1000, sales: 220 }, { target: 1000, sales: 0 }, { target: 2000, sales: 281 }, { target: 1000, sales: 0 }, { target: 1000, sales: 150 }, { target: 2000, sales: 104 }, { target: 2000, sales: 65 }, { target: 2000, sales: 0 }, { target: 2000, sales: 0 } ] },
+        { id: 10011, name: "سيد عابد", branchId: 'b_west', generalTarget: 45000, generalSales: 6200, groups: [ { target: 15000, sales: 3219 }, { target: 5000, sales: 152 }, { target: 2500, sales: 0 }, { target: 3000, sales: 192 }, { target: 3000, sales: 144 }, { target: 3000, sales: 90 }, { target: 2000, sales: 235 }, { target: 2000, sales: 208 }, { target: 2000, sales: 731 }, { target: 1000, sales: 421 }, { target: 1000, sales: 52 }, { target: 2000, sales: 425 }, { target: 2000, sales: 230 }, { target: 2000, sales: 63 }, { target: 2000, sales: 0 } ] },
+        { id: 10052, name: "احمد مصطفى", branchId: 'b_west', generalTarget: 65000, generalSales: 10045, groups: [ { target: 25000, sales: 6616 }, { target: 5000, sales: 1576 }, { target: 5000, sales: 0 }, { target: 3000, sales: 359 }, { target: 2000, sales: 21 }, { target: 3000, sales: 77 }, { target: 2000, sales: 216 }, { target: 2000, sales: 164 }, { target: 2000, sales: 425 }, { target: 3000, sales: 221 }, { target: 1000, sales: -28 }, { target: 2000, sales: 135 }, { target: 2000, sales: 152 }, { target: 2000, sales: 25 }, { target: 2000, sales: 0 } ] }
+      ]
+    };
+
+    function App() {
+      // مستخدم الجلسة الحالي
+      const [currentUser, setCurrentUser] = useState(null);
+      const [loginUsername, setLoginUsername] = useState('');
+      const [loginPassword, setLoginPassword] = useState('');
+      const [authError, setAuthError] = useState('');
+
+      // قاعدة المستخدمين والفروع القابلة للتعديل والحفظ سحابياً
+      const [usersList, setUsersList] = useState(DEFAULT_USERS);
+      const [branchesList, setBranchesList] = useState(DEFAULT_BRANCHES);
+
+      // الفترات والبيانات
+      const [currentPeriod, setCurrentPeriod] = useState('september');
+      const [periodsData, setPeriodsData] = useState({
+        august: AUGUST_DEFAULT,
+        september: SEPTEMBER_DEFAULT
+      });
+      const [isCloudSynced, setIsCloudSynced] = useState(false);
+      const [isSavingCloud, setIsSavingCloud] = useState(false);
+
+      // التبويبات والواجهة
+      const [activeTab, setActiveTab] = useState('matrix');
+      const [searchTerm, setSearchTerm] = useState('');
+      const [branchFilter, setBranchFilter] = useState('all');
+      const [voucherPrintRep, setVoucherPrintRep] = useState(null);
+      const [notification, setNotification] = useState('');
+      const [showInstallHelp, setShowInstallHelp] = useState(false);
+
+      // المودالات
+      const [editingRep, setEditingRep] = useState(null);
+      const [isManagingGroups, setIsManagingGroups] = useState(false);
+      const [isManagingUsers, setIsManagingUsers] = useState(false);
+      
+      // نموذج إضافة مجموعة جديدة
+      const [newGroupForm, setNewGroupForm] = useState({ name: '', code: '', commValue: 200, thresholdPct: 70 });
+      // نموذج إضافة مستخدم جديد
+      const [newUserForm, setNewUserForm] = useState({ username: '', password: '123', name: '', role: 'rep', branchId: 'b_north', repId: '' });
+
+      // محاكي "ماذا لو؟"
+      const [simulatedRepId, setSimulatedRepId] = useState(14);
+      const [simulatedGroupSales, setSimulatedGroupSales] = useState({});
+
+      const showToast = (msg) => {
+        setNotification(msg);
+        setTimeout(() => setNotification(''), 4000);
+      };
+
+      const formatNum = (num) => {
+        if (num === null || num === undefined || isNaN(num)) return '0';
+        return Math.round(num).toLocaleString('en-US');
+      };
+
+      useEffect(() => {
+        let unsubscribe = null;
+        async function initCloudSync() {
+          try {
+            if (!window.__FIREBASE_MODULES__) {
+              setIsCloudSynced(true);
+              return;
+            }
+            const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, getFirestore, doc, setDoc, onSnapshot } = window.__FIREBASE_MODULES__;
+            
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'sales-erp-hierarchy-v2';
+            let firebaseConfig = null;
+            if (typeof __firebase_config !== 'undefined') {
+              try { firebaseConfig = JSON.parse(__firebase_config); } catch(e){}
+            }
+
+            if (!firebaseConfig) {
+              setIsCloudSynced(true);
+              return;
+            }
+
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            const db = getFirestore(app);
+
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+              await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+              await signInAnonymously(auth);
+            }
+
+            const mainDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'sales_platform_master');
+
+            unsubscribe = onSnapshot(mainDocRef, (snap) => {
+              if (snap.exists()) {
+                const data = snap.data();
+                if (data.periods) setPeriodsData(data.periods);
+                if (data.users) setUsersList(data.users);
+                if (data.branches) setBranchesList(data.branches);
+              } else {
+                setDoc(mainDocRef, {
+                  periods: { august: AUGUST_DEFAULT, september: SEPTEMBER_DEFAULT },
+                  users: DEFAULT_USERS,
+                  branches: DEFAULT_BRANCHES,
+                  updatedAt: new Date().toISOString()
+                }).catch(e => console.log(e));
+              }
+              setIsCloudSynced(true);
+            }, (err) => {
+              console.warn(err.message);
+              setIsCloudSynced(true);
+            });
+          } catch(err) {
+            console.warn(err);
+            setIsCloudSynced(true);
+          }
+        }
+
+        if (window.__FIREBASE_MODULES__) initCloudSync();
+        else window.addEventListener('firebase-sdk-ready', initCloudSync, { once: true });
+
+        return () => { if (unsubscribe) unsubscribe(); };
+      }, []);
+
+      // دالة الحفظ السحابي المركزي
+      const persistMasterStateToCloud = async (newPeriods, newUsers, newBranches) => {
+        setIsSavingCloud(true);
+        if (newPeriods) setPeriodsData(newPeriods);
+        if (newUsers) setUsersList(newUsers);
+        if (newBranches) setBranchesList(newBranches);
+
+        try {
+          if (window.__FIREBASE_MODULES__) {
+            const { initializeApp, getFirestore, doc, setDoc } = window.__FIREBASE_MODULES__;
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'sales-erp-hierarchy-v2';
+            let firebaseConfig = null;
+            if (typeof __firebase_config !== 'undefined') {
+              try { firebaseConfig = JSON.parse(__firebase_config); } catch(e){}
+            }
+            if (firebaseConfig) {
+              const app = initializeApp(firebaseConfig);
+              const db = getFirestore(app);
+              const mainDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'sales_platform_master');
+              await setDoc(mainDocRef, {
+                periods: newPeriods || periodsData,
+                users: newUsers || usersList,
+                branches: newBranches || branchesList,
+                lastSavedBy: currentUser?.name || 'مستخدم النظام',
+                updatedAt: new Date().toISOString()
+              }, { merge: true });
+            }
+          }
+        } catch (e) {
+          console.log('Saved to local state (Cloud notice):', e);
+        } finally {
+          setIsSavingCloud(false);
+        }
+      };
+
+      const activeConfig = periodsData[currentPeriod] || SEPTEMBER_DEFAULT;
+
+      // حسابات أداء المندوبين
+      const processedReps = useMemo(() => {
+        const rules = activeConfig;
+        const currentGroupsCount = rules.groupRules.length;
+
+        return (rules.repsData || []).map(rep => {
+          const genTarget = rep.generalTarget || 0;
+          const genSales = rep.generalSales || 0;
+          const genPct = genTarget > 0 ? (genSales / genTarget) * 100 : 0;
+          const meetsGeneralRule = genPct >= rules.generalThresholdPct;
+
+          const requiredGenSales = genTarget * (rules.generalThresholdPct / 100);
+          const remainingGenSales = Math.max(0, requiredGenSales - genSales);
+
+          let qualifiedGroupsCount = 0;
+          let potentialGroupCommSum = 0;
+
+          // مطابقة مصفوفة المجموعات بدقة مع قواعد المجموعات الديناميكية الحالية
+          const detailedGroups = rules.groupRules.map((rule, gIdx) => {
+            const grp = (rep.groups && rep.groups[gIdx]) ? rep.groups[gIdx] : { target: 0, sales: 0 };
+            const grpTarget = grp.target || 0;
+            const grpSales = grp.sales || 0;
+            const grpPct = grpTarget > 0 ? (grpSales / grpTarget) * 100 : 0;
+            const isQualified = grpTarget > 0 && grpPct >= rule.thresholdPct;
+
+            if (isQualified) qualifiedGroupsCount++;
+
+            const potentialComm = isQualified ? (rule.commValue || 0) : 0;
+            potentialGroupCommSum += potentialComm;
+
+            const thresholdTargetSales = grpTarget * (rule.thresholdPct / 100);
+            const remainingToThreshold = Math.max(0, thresholdTargetSales - grpSales);
+
+            return {
+              ...grp,
+              ruleId: rule.id,
+              originalIndex: gIdx,
+              name: rule.name,
+              code: rule.code,
+              thresholdPct: rule.thresholdPct,
+              commValue: rule.commValue,
+              grpPct,
+              isQualified,
+              thresholdTargetSales,
+              remainingToThreshold,
+              potentialComm
+            };
+          });
+
+          // شروط الصرف المالي الصارمة:
+          const meetsMinGroupsRule = qualifiedGroupsCount >= rules.minGroupsRequired;
+          const isFullyEligible = meetsGeneralRule && meetsMinGroupsRule;
+
+          const totalGroupCommissionEarned = isFullyEligible ? potentialGroupCommSum : 0;
+          const baseGenComm = Number(rules.generalTargetCommValue) || 0;
+          const generalTargetCommEarned = (isFullyEligible && baseGenComm > 0) ? baseGenComm : 0;
+          const grandTotalCommission = totalGroupCommissionEarned + generalTargetCommEarned;
+
+          // تحديد الفرع واسم المشرف التابع له
+          const branchObj = branchesList.find(b => b.id === rep.branchId) || { name: 'الفرع الرئيسي' };
+          const supervisorUser = usersList.find(u => u.role === 'supervisor' && u.supervisedRepIds && u.supervisedRepIds.includes(rep.id));
+
+          let blockReason = 'مؤهل للصرف بالكامل ✅';
+          if (!meetsGeneralRule && !meetsMinGroupsRule) {
+            blockReason = `محجوبة: الهدف العام (${genPct.toFixed(0)}%) وحقق ${qualifiedGroupsCount}/${rules.minGroupsRequired} مجموعات`;
+          } else if (!meetsGeneralRule) {
+            blockReason = `محجوبة: نسبة الهدف العام (${genPct.toFixed(0)}% < ${rules.generalThresholdPct}%)`;
+          } else if (!meetsMinGroupsRule) {
+            blockReason = `محجوبة: حقق ${qualifiedGroupsCount} من أصل ${rules.minGroupsRequired} مجموعات مطلوبة`;
+          }
+
+          return {
+            ...rep,
+            branchName: branchObj.name,
+            supervisorName: supervisorUser ? supervisorUser.name : 'مشرف الفرع العام',
+            genPct,
+            requiredGenSales,
+            remainingGenSales,
+            meetsGeneralRule,
+            meetsMinGroupsRule,
+            isFullyEligible,
+            blockReason,
+            detailedGroups,
+            qualifiedGroupsCount,
+            totalGroupCommissionEarned,
+            generalTargetCommEarned,
+            potentialGroupCommSum,
+            grandTotalCommission
+          };
+        });
+      }, [activeConfig, branchesList, usersList]);
+
+      const authorizedReps = useMemo(() => {
+        if (!currentUser) return [];
+        if (currentUser.role === 'admin' || currentUser.role === 'finance') {
+          // المدير والمحاسب يشاهد الجميع
+          if (branchFilter === 'all') return processedReps;
+          return processedReps.filter(r => r.branchId === branchFilter);
+        }
+        if (currentUser.role === 'supervisor') {
+          // المشرف يشاهد فقط المندوبين الموكلين إليه
+          const supervised = currentUser.supervisedRepIds || [];
+          return processedReps.filter(r => supervised.includes(r.id));
+        }
+        if (currentUser.role === 'rep') {
+          return processedReps.filter(r => r.id === currentUser.repId);
+        }
+        return processedReps;
+      }, [currentUser, processedReps, branchFilter]);
+
+      // إحصائيات KPI المعتمدة على الصلاحية الحالية
+      const kpiTotals = useMemo(() => {
+        let totalTarget = 0, totalSales = 0, totalCommissionPaid = 0, totalPotentialBlocked = 0;
+        let eligibleCount = 0;
+
+        authorizedReps.forEach(r => {
+          totalTarget += r.generalTarget;
+          totalSales += r.generalSales;
+          totalCommissionPaid += r.grandTotalCommission;
+          totalPotentialBlocked += (r.potentialGroupCommSum + (Number(activeConfig.generalTargetCommValue) || 0)) - r.grandTotalCommission;
+          if (r.isFullyEligible) eligibleCount++;
+        });
+
+        const overallRate = totalTarget > 0 ? (totalSales / totalTarget) * 100 : 0;
+        return {
+          totalTarget,
+          totalSales,
+          overallRate,
+          totalCommissionPaid,
+          totalPotentialBlocked,
+          eligibleCount,
+          totalReps: authorizedReps.length
+        };
+      }, [authorizedReps, activeConfig]);
+
+      const handleLoginSubmit = (e) => {
+        e.preventDefault();
+        setAuthError('');
+
+        const cleanUsername = loginUsername.trim().toLowerCase();
+        const foundUser = usersList.find(u => u.username.toLowerCase() === cleanUsername && u.password === loginPassword.trim());
+
+        if (foundUser) {
+          setCurrentUser(foundUser);
+          if (foundUser.role === 'rep') {
+            setActiveTab('portal');
+            showToast(`أهلاً بك يا ${foundUser.name}! تم تسجيل دخولك لبوابتك الشخصية بنجاح.`);
+          } else {
+            setActiveTab('matrix');
+            showToast(`مرحباً ${foundUser.name}، تم تسجيل الدخول بنجاح بصلاحية: ${foundUser.role === 'admin' ? 'المدير العام' : (foundUser.role === 'supervisor' ? 'مشرف المبيعات' : 'المحاسب المالي')}`);
+          }
+        } else {
+          setAuthError('اسم المستخدم أو كلمة المرور غير صحيحة! يرجى التأكد وإعادة المحاولة.');
+        }
+      };
+
+      const handleLogout = () => {
+        setCurrentUser(null);
+        setLoginUsername('');
+        setLoginPassword('');
+        setAuthError('');
+        showToast('تم تسجيل الخروج بنجاح.');
+      };
+
+      const handleAddNewGroup = (e) => {
+        e.preventDefault();
+        if (!newGroupForm.name) {
+          showToast('يرجى كتابة اسم الصنف أو المجموعة!');
+          return;
+        }
+
+        const newRule = {
+          id: 'grp_' + Date.now(),
+          name: newGroupForm.name.trim(),
+          code: newGroupForm.code.trim() || 'NEW',
+          commValue: parseFloat(newGroupForm.commValue) || 200,
+          thresholdPct: parseFloat(newGroupForm.thresholdPct) || 70,
+          commType: 'fixed'
+        };
+
+        const updatedPeriods = { ...periodsData };
+        const currentPeriodObj = { ...updatedPeriods[currentPeriod] };
+        currentPeriodObj.groupRules = [...currentPeriodObj.groupRules, newRule];
+
+        // إضافة خانة الهدف لهذا الصنف لكل المندوبين بقيمة 0 افتراضياً
+        currentPeriodObj.repsData = currentPeriodObj.repsData.map(rep => ({
+          ...rep,
+          groups: [...(rep.groups || []), { target: 0, sales: 0 }]
+        }));
+
+        updatedPeriods[currentPeriod] = currentPeriodObj;
+        persistMasterStateToCloud(updatedPeriods, null, null);
+        setNewGroupForm({ name: '', code: '', commValue: 200, thresholdPct: 70 });
+        showToast(`تمت إضافة مجموعة [${newRule.name}] سحابياً إلى كل المندوبين بنجاح!`);
+      };
+
+      const handleDeleteGroup = (ruleIndex, ruleName) => {
+        if (currentUser?.role !== 'admin') {
+          showToast('حذف الأصناف مقصور على المدير العام فقط!');
+          return;
+        }
+
+        const updatedPeriods = { ...periodsData };
+        const currentPeriodObj = { ...updatedPeriods[currentPeriod] };
+        
+        currentPeriodObj.groupRules = currentPeriodObj.groupRules.filter((_, idx) => idx !== ruleIndex);
+        currentPeriodObj.repsData = currentPeriodObj.repsData.map(rep => ({
+          ...rep,
+          groups: (rep.groups || []).filter((_, idx) => idx !== ruleIndex)
+        }));
+
+        updatedPeriods[currentPeriod] = currentPeriodObj;
+        persistMasterStateToCloud(updatedPeriods, null, null);
+        showToast(`تم حذف مجموعة [${ruleName}] من النظام بنجاح!`);
+      };
+
+      const handleAddNewUser = (e) => {
+        e.preventDefault();
+        if (!newUserForm.username || !newUserForm.name) {
+          showToast('يرجى ملء كافة حقول المستخدم الأساسية!');
+          return;
+        }
+
+        const cleanUsername = newUserForm.username.trim().toLowerCase();
+        if (usersList.some(u => u.username.toLowerCase() === cleanUsername)) {
+          showToast('اسم المستخدم هذا مستخدم مسبقاً! اختر اسماً آخر.');
+          return;
+        }
+
+        const newUser = {
+          username: cleanUsername,
+          password: newUserForm.password.trim() || '123',
+          name: newUserForm.name.trim(),
+          role: newUserForm.role,
+          branchId: newUserForm.branchId,
+          phone: '',
+          supervisedRepIds: newUserForm.role === 'supervisor' ? [] : undefined,
+          repId: newUserForm.role === 'rep' ? (parseInt(newUserForm.repId) || Date.now() % 10000) : undefined
+        };
+
+        const updatedUsers = [...usersList, newUser];
+        persistMasterStateToCloud(null, updatedUsers, null);
+        setNewUserForm({ username: '', password: '123', name: '', role: 'rep', branchId: 'b_north', repId: '' });
+        showToast(`تم إنشاء حساب المستخدم [${newUser.name}] بنجاح!`);
+      };
+
+      const handleUpdateUserPassword = (username, newPass) => {
+        if (!newPass.trim()) return;
+        const updatedUsers = usersList.map(u => u.username === username ? { ...u, password: newPass.trim() } : u);
+        persistMasterStateToCloud(null, updatedUsers, null);
+        showToast(`تم تحديث كلمة المرور للمستخدم [${username}] سحابياً!`);
+      };
+
+      const handleAssignRepToSupervisor = (supervisorUsername, repIdToToggle) => {
+        const updatedUsers = usersList.map(u => {
+          if (u.username === supervisorUsername) {
+            const currentList = u.supervisedRepIds || [];
+            const exists = currentList.includes(repIdToToggle);
+            const newList = exists ? currentList.filter(id => id !== repIdToToggle) : [...currentList, repIdToToggle];
+            return { ...u, supervisedRepIds: newList };
+          }
+          return u;
+        });
+        persistMasterStateToCloud(null, updatedUsers, null);
+        showToast('تم تحديث قائمة مندوبي المشرف بنجاح!');
+      };
+
+      const handleSaveRepTargets = (repId, newGroupTargets, newGenTarget) => {
+        const updatedPeriods = { ...periodsData };
+        const currentPeriodObj = { ...updatedPeriods[currentPeriod] };
+
+        currentPeriodObj.repsData = currentPeriodObj.repsData.map(rep => {
+          if (rep.id === repId) {
+            const updatedGroups = (rep.groups || []).map((grp, idx) => ({
+              ...grp,
+              target: newGroupTargets[idx] !== undefined ? Math.max(0, parseFloat(newGroupTargets[idx]) || 0) : grp.target
+            }));
+            return {
+              ...rep,
+              generalTarget: newGenTarget !== undefined ? Math.max(0, parseFloat(newGenTarget) || 0) : rep.generalTarget,
+              groups: updatedGroups
+            };
+          }
+          return rep;
+        });
+
+        updatedPeriods[currentPeriod] = currentPeriodObj;
+        persistMasterStateToCloud(updatedPeriods, null, null);
+        setEditingRep(null);
+        showToast('تم تحديث أهداف المندوب سحابياً ومشاركتها مع الجميع!');
+      };
+
+      const activePortalRep = useMemo(() => {
+        if (currentUser?.role === 'rep') {
+          return processedReps.find(r => r.id === currentUser.repId) || processedReps[0];
+        }
+        return authorizedReps.find(r => r.id === simulatedRepId) || authorizedReps[0] || processedReps[0];
+      }, [processedReps, authorizedReps, currentUser, simulatedRepId]);
+
+      const simulatedRep = useMemo(() => {
+        const base = activePortalRep;
+        if (!base) return null;
+
+        let addedSalesTotal = 0;
+        let newlyQualifiedGroups = 0;
+        let simGroupComm = 0;
+
+        const simGroups = base.detailedGroups.map((grp, idx) => {
+          const added = parseFloat(simulatedGroupSales[idx]) || 0;
+          const simSales = grp.sales + added;
+          const simPct = grp.target > 0 ? (simSales / grp.target) * 100 : 0;
+          const isQual = grp.target > 0 && simPct >= grp.thresholdPct;
+
+          if (isQual) newlyQualifiedGroups++;
+          if (isQual) simGroupComm += grp.commValue;
+          addedSalesTotal += added;
+
+          return { ...grp, simSales, simPct, isQual };
+        });
+
+        const simGenSales = base.generalSales + addedSalesTotal;
+        const simGenPct = base.generalTarget > 0 ? (simGenSales / base.generalTarget) * 100 : 0;
+        const simMeetsGen = simGenPct >= activeConfig.generalThresholdPct;
+        const simMeetsGroups = newlyQualifiedGroups >= activeConfig.minGroupsRequired;
+        const simFullyEligible = simMeetsGen && simMeetsGroups;
+        const simGenBonus = (simFullyEligible && activeConfig.generalTargetCommValue > 0) ? activeConfig.generalTargetCommValue : 0;
+        const simGrandCommission = simFullyEligible ? (simGroupComm + simGenBonus) : 0;
+
+        return {
+          base,
+          addedSalesTotal,
+          simGenSales,
+          simGenPct,
+          simMeetsGen,
+          newlyQualifiedGroups,
+          simMeetsGroups,
+          simFullyEligible,
+          simGrandCommission,
+          simGroups
+        };
+      }, [activePortalRep, simulatedGroupSales, activeConfig]);
+
+      if (!currentUser) {
+        return (
+          <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center p-4 selection:bg-emerald-500">
+            <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+              <div className="absolute -top-16 -right-16 w-36 h-36 bg-emerald-500/20 rounded-full blur-3xl"></div>
+              <div className="absolute -bottom-16 -left-16 w-36 h-36 bg-teal-500/20 rounded-full blur-3xl"></div>
+
+              <div className="text-center mb-6 relative">
+                <div className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 text-2xl font-black shadow-lg shadow-emerald-500/30 mb-3">
+                  <i className="fa-solid fa-layer-group"></i>
+                </div>
+                <h1 className="text-lg font-black text-white">منظومة أهداف وعمولات المبيعات</h1>
+                <p className="text-xs text-slate-400 mt-1">بوابة الدخول الموحدة (فروع، مشرفين، ومندوبين)</p>
+              </div>
+
+              {/* Login Form */}
+              <form onSubmit={handleLoginSubmit} className="space-y-4">
+                <div>
+                  <label className="text-xs text-slate-300 font-bold block mb-1">اسم المستخدم الخاص بك:</label>
+                  <div className="relative">
+                    <i className="fa-solid fa-user absolute right-3 top-3 text-slate-500 text-xs"></i>
+                    <input
+                      type="text"
+                      placeholder="مثلاً: rep14 أو super_north أو admin"
+                      value={loginUsername}
+                      onChange={(e) => setLoginUsername(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pr-9 pl-3 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 font-mono"
+                      autoFocus
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs text-slate-300 font-bold block mb-1">كلمة المرور:</label>
+                  <div className="relative">
+                    <i className="fa-solid fa-lock absolute right-3 top-3 text-slate-500 text-xs"></i>
+                    <input
+                      type="password"
+                      placeholder="أدخل كلمة المرور..."
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pr-9 pl-3 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 font-mono"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {authError && (
+                  <div className="bg-rose-950/50 border border-rose-500/40 text-rose-300 p-2.5 rounded-xl text-xs flex items-center gap-2 font-bold">
+                    <i className="fa-solid fa-triangle-exclamation"></i>
+                    {authError}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black py-2.5 rounded-xl text-xs shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2"
+                >
+                  <i className="fa-solid fa-right-to-bracket"></i>
+                  تسجيل الدخول للنظام
+                </button>
+              </form>
+
+              {/* Quick Demo Helper */}
+              <div className="mt-5 p-3 bg-slate-950/70 border border-slate-800/80 rounded-2xl text-[11px] text-slate-400 space-y-1">
+                <span className="font-bold text-amber-400 block"><i className="fa-solid fa-key ml-1"></i> حسابات تجريبية سريعة (كلمة المرور للجميع: 123):</span>
+                <div className="flex flex-wrap gap-1 text-[10px]">
+                  <button type="button" onClick={() => { setLoginUsername('admin'); setLoginPassword('123'); }} className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded">المدير: admin</button>
+                  <button type="button" onClick={() => { setLoginUsername('super_north'); setLoginPassword('123'); }} className="bg-slate-800 hover:bg-slate-700 text-purple-300 px-2 py-0.5 rounded">مشرف الشمال: super_north</button>
+                  <button type="button" onClick={() => { setLoginUsername('rep14'); setLoginPassword('123'); }} className="bg-slate-800 hover:bg-slate-700 text-emerald-300 px-2 py-0.5 rounded">مندوب: rep14 (سليمان)</button>
+                </div>
+              </div>
+
+              {/* PWA Android Install Hint */}
+              <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-500">
+                <span className="flex items-center gap-1.5">
+                  <span className={`w-2 h-2 rounded-full ${isCloudSynced ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></span>
+                  {isCloudSynced ? 'السحابة متصلة ونشطة' : 'جاري الاتصال...'}
+                </span>
+                <button type="button" onClick={() => setShowInstallHelp(true)} className="text-teal-400 hover:underline flex items-center gap-1">
+                  <i className="fa-brands fa-android"></i> تشغيله كتطبيق أندرويد
+                </button>
+              </div>
+
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="min-h-screen pb-20">
+          
+          {/* Top Header */}
+          <header className="bg-slate-900/95 backdrop-blur border-b border-slate-800 sticky top-0 z-40 no-print">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                
+                {/* Brand & User info */}
+                <div className="flex items-center space-x-3 space-x-reverse">
+                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20 shrink-0">
+                    <i className="fa-solid fa-layer-group text-slate-950 font-black"></i>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h1 className="text-sm font-black text-white">منظومة المبيعات السحابية</h1>
+                      <span className="text-[10px] bg-emerald-950 text-emerald-300 font-bold px-2 py-0.5 rounded-full border border-emerald-500/30">
+                        {currentUser.name} ({currentUser.role === 'admin' ? 'المدير العام' : (currentUser.role === 'supervisor' ? 'مشرف مبيعات' : (currentUser.role === 'finance' ? 'المحاسب' : 'مندوب'))})
+                      </span>
+                      {isSavingCloud && (
+                        <span className="text-[10px] bg-teal-950 text-teal-300 px-2 py-0.5 rounded border border-teal-500/30 animate-pulse">
+                          <i className="fa-solid fa-cloud-arrow-up ml-1"></i> جاري الحفظ سحابياً...
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
+                      <span>الفترة: <strong className="text-slate-200">{activeConfig.periodName}</strong></span>
+                      <span className="text-slate-600">•</span>
+                      <span>{activeConfig.groupRules.length} مجموعة سلعية</span>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Global Controls */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  
+                  {/* Period Switcher */}
+                  <div className="bg-slate-950 p-1 rounded-xl border border-slate-800 flex items-center text-xs">
+                    <button
+                      onClick={() => { setCurrentPeriod('september'); showToast('تم التبديل لمتابعة شهر سبتمبر 2026'); }}
+                      className={`px-3 py-1 rounded-lg font-bold transition-all ${currentPeriod === 'september' ? 'bg-purple-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                    >
+                      سبتمبر 2026
+                    </button>
+                    <button
+                      onClick={() => { setCurrentPeriod('august'); showToast('تم التبديل لختام أغسطس 2026'); }}
+                      className={`px-3 py-1 rounded-lg font-bold transition-all ${currentPeriod === 'august' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                    >
+                      أغسطس 2026
+                    </button>
+                  </div>
+
+                  {/* Android Install Button */}
+                  <button
+                    onClick={() => setShowInstallHelp(true)}
+                    className="bg-emerald-950 hover:bg-emerald-900/80 text-emerald-300 border border-emerald-500/30 px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+                    title="تثبيت كتطبيق أندرويد على الهاتف"
+                  >
+                    <i className="fa-brands fa-android text-emerald-400"></i>
+                    <span className="hidden sm:inline">تطبيق أندرويد</span>
+                  </button>
+
+                  {/* Admin User Management Button */}
+                  {currentUser.role === 'admin' && (
+                    <button
+                      onClick={() => setIsManagingUsers(true)}
+                      className="bg-purple-950 hover:bg-purple-900/80 text-purple-300 border border-purple-500/30 px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5"
+                      title="إدارة المستخدمين والمشرفين وكلمات المرور"
+                    >
+                      <i className="fa-solid fa-users-gear"></i>
+                      <span className="hidden sm:inline">المستخدمين والصلاحيات</span>
+                    </button>
+                  )}
+
+                  {/* Dynamic Groups Button */}
+                  {(currentUser.role === 'admin' || currentUser.role === 'supervisor') && (
+                    <button
+                      onClick={() => setIsManagingGroups(true)}
+                      className="bg-amber-950 hover:bg-amber-900/80 text-amber-300 border border-amber-500/30 px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5"
+                      title="إضافة وتعديل وحذف المجموعات السلعية"
+                    >
+                      <i className="fa-solid fa-cubes-stacked"></i>
+                      <span className="hidden sm:inline">إدارة المجموعات ({activeConfig.groupRules.length})</span>
+                    </button>
+                  )}
+
+                  {/* Logout Button */}
+                  <button
+                    onClick={handleLogout}
+                    className="bg-slate-800 hover:bg-rose-950 text-slate-300 hover:text-rose-300 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors"
+                  >
+                    <i className="fa-solid fa-arrow-right-from-bracket"></i>
+                    خروج
+                  </button>
+
+                </div>
+              </div>
+
+              {/* Sub-Navigation Tabs */}
+              <nav className="flex space-x-2 space-x-reverse mt-2.5 border-t border-slate-800/80 pt-2 overflow-x-auto text-xs font-bold">
+                {currentUser.role !== 'rep' ? (
+                  <>
+                    <button
+                      onClick={() => setActiveTab('matrix')}
+                      className={`px-3 py-1.5 rounded-xl transition-all shrink-0 flex items-center gap-1.5 ${
+                        activeTab === 'matrix' ? 'bg-emerald-500 text-slate-950 shadow' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-800'
+                      }`}
+                    >
+                      <i className="fa-solid fa-table-cells"></i> مصفوفة الماتريكس المفصلة
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab('summary')}
+                      className={`px-3 py-1.5 rounded-xl transition-all shrink-0 flex items-center gap-1.5 ${
+                        activeTab === 'summary' ? 'bg-emerald-500 text-slate-950 shadow' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-800'
+                      }`}
+                    >
+                      <i className="fa-solid fa-file-invoice-dollar"></i> كشف الاستحقاق والعمولات
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab('calculator')}
+                      className={`px-3 py-1.5 rounded-xl transition-all shrink-0 flex items-center gap-1.5 ${
+                        activeTab === 'calculator' ? 'bg-amber-500 text-slate-950 shadow' : 'bg-slate-800/60 text-amber-300 hover:bg-slate-800'
+                      }`}
+                    >
+                      <i className="fa-solid fa-wand-magic-sparkles"></i> محاكي "ماذا لو؟" 🎯
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => setActiveTab('portal')}
+                      className={`px-4 py-1.5 rounded-xl font-black flex items-center gap-2 ${
+                        activeTab === 'portal' ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300'
+                      }`}
+                    >
+                      <i className="fa-solid fa-id-card"></i> كشف حسابي وأهدافي الفردية
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('calculator')}
+                      className={`px-4 py-1.5 rounded-xl font-black flex items-center gap-2 ${
+                        activeTab === 'calculator' ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-amber-300'
+                      }`}
+                    >
+                      <i className="fa-solid fa-wand-magic-sparkles"></i> حاسبة فك العمولات ("ماذا لو؟")
+                    </button>
+                  </>
+                )}
+              </nav>
+            </div>
+          </header>
+
+          {/* Toast Notification */}
+          {notification && (
+            <div className="fixed bottom-5 left-5 z-50 bg-emerald-500 text-slate-950 font-bold px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2 text-xs animate-bounce no-print">
+              <i className="fa-solid fa-circle-check text-sm"></i>
+              {notification}
+            </div>
+          )}
+
+          {}
+          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-5">
+
+            {currentUser.role !== 'rep' && (
+              <>
+                {/* Branch & Hierarchy Filter Row */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 mb-5 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-bold text-slate-400">
+                      <i className="fa-solid fa-sitemap text-emerald-400 ml-1"></i> تصفية الفروع:
+                    </span>
+                    {currentUser.role === 'supervisor' ? (
+                      <span className="bg-purple-950 text-purple-300 border border-purple-500/30 px-3 py-1 rounded-xl text-xs font-bold">
+                        مندوبو إشرافك المباشر ({authorizedReps.length} مندوب)
+                      </span>
+                    ) : (
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <button
+                          onClick={() => setBranchFilter('all')}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${branchFilter === 'all' ? 'bg-emerald-600 text-white' : 'bg-slate-950 text-slate-400 hover:text-white'}`}
+                        >
+                          كافة الفروع
+                        </button>
+                        {branchesList.map(b => (
+                          <button
+                            key={b.id}
+                            onClick={() => setBranchFilter(b.id)}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${branchFilter === b.id ? 'bg-emerald-600 text-white' : 'bg-slate-950 text-slate-400 hover:text-white'}`}
+                          >
+                            {b.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="text-xs text-slate-400">
+                    المندوبين المعروضين: <strong className="text-white">{authorizedReps.length}</strong> مندوب
+                  </div>
+                </div>
+
+                {/* KPI Metrics */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mb-5">
+                  <div className="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl">
+                    <span className="text-xs text-slate-400 block font-semibold mb-1">المبيعات المحققة</span>
+                    <div className="text-lg font-black text-white font-mono">{formatNum(kpiTotals.totalSales)} <span className="text-xs font-sans text-slate-400">ر.س</span></div>
+                    <span className="text-[10px] text-slate-400 mt-0.5 block">من هدف: {formatNum(kpiTotals.totalTarget)}</span>
+                  </div>
+
+                  <div className="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl">
+                    <span className="text-xs text-slate-400 block font-semibold mb-1">نسبة الإنجاز</span>
+                    <div className={`text-lg font-black font-mono ${kpiTotals.overallRate >= activeConfig.generalThresholdPct ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      {kpiTotals.overallRate.toFixed(1)}%
+                    </div>
+                    <span className="text-[10px] text-slate-400 mt-0.5 block">عتبة الاستحقاق: {activeConfig.generalThresholdPct}%</span>
+                  </div>
+
+                  <div className="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl">
+                    <span className="text-xs text-slate-400 block font-semibold mb-1">المؤهلون للصرف</span>
+                    <div className="text-lg font-black text-teal-300 font-mono">
+                      {kpiTotals.eligibleCount} <span className="text-xs font-normal text-slate-400">من {kpiTotals.totalReps}</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 mt-0.5 block">مجموعات &ge; {activeConfig.minGroupsRequired}</span>
+                  </div>
+
+                  <div className="bg-slate-900 border border-emerald-500/40 bg-emerald-950/20 p-3.5 rounded-2xl">
+                    <span className="text-xs text-emerald-300 block font-bold mb-1">إجمالي العمولات المستحقة</span>
+                    <div className="text-xl font-black text-emerald-400 font-mono">
+                      {formatNum(kpiTotals.totalCommissionPaid)} <span className="text-xs font-sans text-slate-300">ر.س</span>
+                    </div>
+                    <span className="text-[10px] text-amber-300/80 mt-0.5 block">
+                      محجوبة لعدم اكتمال الشروط: {formatNum(kpiTotals.totalPotentialBlocked)} ر.س
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {}
+            {activeTab === 'matrix' && currentUser.role !== 'rep' && (
+              <div className="space-y-4">
+                <div className="bg-slate-900 p-3 rounded-2xl border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow">
+                  <div className="relative flex-1 max-w-md">
+                    <i className="fa-solid fa-magnifying-glass absolute right-3.5 top-2.5 text-slate-500 text-xs"></i>
+                    <input
+                      type="text"
+                      placeholder="البحث باسم المندوب أو كوده..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pr-10 pl-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => window.print()}
+                      className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5"
+                    >
+                      <i className="fa-solid fa-print text-amber-400"></i> طباعة التقرير
+                    </button>
+                  </div>
+                </div>
+
+                {/* Matrix Table */}
+                <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl">
+                  <div className="overflow-x-auto max-h-[72vh]">
+                    <table className="w-full text-xs text-right text-slate-200 border-collapse">
+                      <thead className="bg-slate-950 text-slate-200 sticky top-0 z-30 font-bold text-[11px]">
+                        <tr className="border-b border-slate-800 divide-x divide-x-reverse divide-slate-800">
+                          <th className="py-2.5 px-2 bg-slate-950 sticky-col-1" rowSpan="2">#</th>
+                          <th className="py-2.5 px-3 bg-slate-950 sticky-col-2 min-w-[140px]" rowSpan="2">المندوب والفرع</th>
+                          <th className="py-2.5 px-2.5 text-center bg-teal-950/60 border-l border-teal-500/30" rowSpan="2">المجموعات<br/>المحققة</th>
+                          <th className="py-2.5 px-3 text-center bg-emerald-950/70 border-l border-emerald-500/30 min-w-[95px]" rowSpan="2">العمولة<br/>المستحقة</th>
+                          <th className="py-2.5 px-2.5 bg-slate-900 border-l border-slate-800" rowSpan="2">الهدف العام</th>
+                          <th className="py-2.5 px-2.5 bg-slate-900 border-l border-slate-800" rowSpan="2">المبيعات</th>
+                          <th className="py-2.5 px-2.5 bg-slate-900 border-l border-slate-800" rowSpan="2">النسبة%</th>
+
+                          {/* Dynamic Groups Headers */}
+                          {activeConfig.groupRules.map((grp, idx) => (
+                            <th key={grp.id || idx} colSpan="4" className={`py-2 px-2 text-center border-l border-slate-800 ${idx % 2 === 0 ? 'bg-slate-900 text-amber-300' : 'bg-slate-950 text-teal-300'}`}>
+                              <div className="font-bold truncate max-w-[140px]">{grp.name}</div>
+                              <div className="text-[10px] font-normal text-slate-400 font-mono">كود {grp.code || '-'} | {grp.commValue} ر.س</div>
+                            </th>
+                          ))}
+                        </tr>
+
+                        <tr className="border-b-2 border-slate-700 bg-slate-900 text-[10px] text-slate-400 divide-x divide-x-reverse divide-slate-800">
+                          {activeConfig.groupRules.map((grp, idx) => (
+                            <React.Fragment key={grp.id || idx}>
+                              <th className="py-1.5 px-2 font-medium">هدف</th>
+                              <th className="py-1.5 px-2 font-medium text-emerald-400">محقق</th>
+                              <th className="py-1.5 px-2 font-medium">نسبة%</th>
+                              <th className="py-1.5 px-2 font-medium text-amber-300 border-l border-slate-700">عمولة</th>
+                            </React.Fragment>
+                          ))}
+                        </tr>
+                      </thead>
+
+                      <tbody className="divide-y divide-slate-800/80 font-mono text-[11px]">
+                        {authorizedReps.filter(r => r.name.includes(searchTerm) || r.id.toString().includes(searchTerm)).map(rep => (
+                          <tr key={rep.id} className="hover:bg-slate-800/50 transition-colors">
+                            <td className="py-2 px-2 bg-slate-950 sticky-col-1 text-slate-400 font-sans border-r border-slate-800">{rep.id}</td>
+                            <td className="py-2 px-3 bg-slate-950 sticky-col-2 font-sans border-r border-slate-800 whitespace-nowrap">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <span className="font-bold text-white block">{rep.name}</span>
+                                  <span className="text-[10px] text-slate-400">{rep.branchName}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 mr-2">
+                                  {(currentUser.role === 'admin' || currentUser.role === 'supervisor') && (
+                                    <button
+                                      onClick={() => setEditingRep(rep)}
+                                      title="تعديل وتخصيص أهداف المندوب سحابياً"
+                                      className="text-slate-400 hover:text-emerald-400 text-xs p-1"
+                                    >
+                                      <i className="fa-solid fa-pen-to-square"></i>
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => setVoucherPrintRep(rep)}
+                                    title="طباعة سند الصرف"
+                                    className="text-slate-400 hover:text-amber-400 text-xs p-1"
+                                  >
+                                    <i className="fa-solid fa-receipt"></i>
+                                  </button>
+                                </div>
+                              </div>
+                            </td>
+
+                            <td className="py-2 px-2 text-center bg-teal-950/20 border-l border-slate-800">
+                              <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${rep.meetsMinGroupsRule ? 'bg-teal-500/20 text-teal-300' : 'bg-slate-800 text-slate-400'}`}>
+                                {rep.qualifiedGroupsCount}
+                              </span>
+                            </td>
+
+                            <td className="py-2 px-3 text-center bg-emerald-950/30 font-bold border-l border-slate-800">
+                              <span className={rep.grandTotalCommission > 0 ? 'text-emerald-400 font-black text-xs' : 'text-slate-500'}>
+                                {formatNum(rep.grandTotalCommission)}
+                              </span>
+                            </td>
+
+                            <td className="py-2 px-2.5 text-slate-300 border-l border-slate-800">{formatNum(rep.generalTarget)}</td>
+                            <td className="py-2 px-2.5 font-bold text-white border-l border-slate-800">{formatNum(rep.generalSales)}</td>
+                            <td className="py-2 px-2.5 border-l border-slate-800">
+                              <span className={`font-bold ${rep.meetsGeneralRule ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                {rep.genPct.toFixed(0)}%
+                              </span>
+                            </td>
+
+                            {rep.detailedGroups.map((g, gIdx) => (
+                              <React.Fragment key={gIdx}>
+                                <td className="py-1.5 px-2 text-slate-400 text-[10px]">{g.target > 0 ? formatNum(g.target) : '-'}</td>
+                                <td className={`py-1.5 px-2 font-bold ${g.sales < 0 ? 'text-rose-400' : (g.sales > 0 ? 'text-slate-200' : 'text-slate-500')}`}>
+                                  {g.sales < 0 ? `(${formatNum(Math.abs(g.sales))})` : (g.sales > 0 ? formatNum(g.sales) : '-')}
+                                </td>
+                                <td className="py-1.5 px-2 text-[10px]">
+                                  {g.target > 0 ? (
+                                    <span className={g.grpPct >= g.thresholdPct ? 'text-emerald-400 font-bold' : 'text-slate-500'}>
+                                      {g.grpPct.toFixed(0)}%
+                                    </span>
+                                  ) : '-'}
+                                </td>
+                                <td className="py-1.5 px-2 font-bold border-l border-slate-800 text-[10px]">
+                                  {rep.isFullyEligible && g.isQualified ? (
+                                    <span className="text-amber-300">{g.commValue}</span>
+                                  ) : (
+                                    <span className="text-slate-600 font-normal">0</span>
+                                  )}
+                                </td>
+                              </React.Fragment>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {}
+            {activeTab === 'summary' && currentUser.role !== 'rep' && (
+              <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-right text-slate-200">
+                    <thead className="bg-slate-950 text-slate-300 uppercase text-[11px] font-extrabold border-b border-slate-800">
+                      <tr>
+                        <th className="py-3 px-3">#</th>
+                        <th className="py-3 px-3">المندوب</th>
+                        <th className="py-3 px-3">الفرع والمشرف</th>
+                        <th className="py-3 px-3">الهدف العام</th>
+                        <th className="py-3 px-3">المبيعات</th>
+                        <th className="py-3 px-3">النسبة%</th>
+                        <th className="py-3 px-3 text-center">المجموعات المحققة</th>
+                        <th className="py-3 px-3">حالة الاستحقاق</th>
+                        <th className="py-3 px-3 text-teal-300">عمولات المجموعات</th>
+                        <th className="py-3 px-3 text-amber-300">عمولة الهدف العام</th>
+                        <th className="py-3 px-3 text-emerald-400 font-black">الصافي المستحق</th>
+                        <th className="py-3 px-3 text-center">إجراءات</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800 font-mono">
+                      {authorizedReps.map(rep => (
+                        <tr key={rep.id} className="hover:bg-slate-800/40">
+                          <td className="py-3 px-3 text-slate-400 font-sans">{rep.id}</td>
+                          <td className="py-3 px-3 font-bold text-white font-sans">{rep.name}</td>
+                          <td className="py-3 px-3 font-sans text-slate-400 text-[11px]">
+                            <div>{rep.branchName}</div>
+                            <div className="text-purple-300 text-[10px]">المشرف: {rep.supervisorName}</div>
+                          </td>
+                          <td className="py-3 px-3">{formatNum(rep.generalTarget)}</td>
+                          <td className="py-3 px-3 font-bold text-white">{formatNum(rep.generalSales)}</td>
+                          <td className="py-3 px-3">
+                            <span className={rep.meetsGeneralRule ? 'text-emerald-400 font-bold' : 'text-amber-400'}>
+                              {rep.genPct.toFixed(1)}%
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-center">
+                            <span className={`px-2 py-0.5 rounded font-bold ${rep.meetsMinGroupsRule ? 'bg-teal-500/20 text-teal-300' : 'bg-slate-800 text-slate-400'}`}>
+                              {rep.qualifiedGroupsCount} / {activeConfig.groupRules.length}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 font-sans">
+                            {rep.isFullyEligible ? (
+                              <span className="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded text-[10px] font-bold">مستحق بالكامل ✅</span>
+                            ) : (
+                              <span className="text-slate-400 text-[10px] block">{rep.blockReason}</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 text-teal-300 font-bold">{formatNum(rep.totalGroupCommissionEarned)} ر.س</td>
+                          <td className="py-3 px-3 text-amber-300 font-bold">{formatNum(rep.generalTargetCommEarned)} ر.س</td>
+                          <td className="py-3 px-3 text-emerald-400 font-black text-sm">{formatNum(rep.grandTotalCommission)} ر.س</td>
+                          <td className="py-3 px-3 text-center font-sans">
+                            <button
+                              onClick={() => setVoucherPrintRep(rep)}
+                              className="bg-slate-800 hover:bg-emerald-600 hover:text-slate-950 text-slate-300 px-2.5 py-1 rounded-lg text-xs font-bold transition-all"
+                            >
+                              السند
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {}
+            {(activeTab === 'portal' || currentUser.role === 'rep') && (
+              <div className="space-y-5 max-w-4xl mx-auto">
+                <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xl relative">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-amber-500 to-teal-400 flex items-center justify-center text-slate-950 text-2xl font-black shadow-lg">
+                        {activePortalRep.name.charAt(0)}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-lg font-black text-white">{activePortalRep.name}</h2>
+                          <span className="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-mono">#{activePortalRep.id}</span>
+                        </div>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          الفرع: <strong>{activePortalRep.branchName}</strong> | المشرف: <strong>{activePortalRep.supervisorName}</strong>
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => setVoucherPrintRep(activePortalRep)}
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2 rounded-xl flex items-center gap-2 shadow"
+                    >
+                      <i className="fa-solid fa-receipt"></i> طباعة إشعار الاستحقاق
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
+                    <span className="text-xs text-slate-400 block mb-1">المستهدف العام</span>
+                    <span className="text-base font-black text-white font-mono">{formatNum(activePortalRep.generalTarget)}</span>
+                  </div>
+
+                  <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
+                    <span className="text-xs text-slate-400 block mb-1">المبيعات العامة</span>
+                    <span className="text-base font-black text-emerald-400 font-mono">
+                      {formatNum(activePortalRep.generalSales)} ({activePortalRep.genPct.toFixed(0)}%)
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
+                    <span className="text-xs text-slate-400 block mb-1">المجموعات المحققة</span>
+                    <span className={`text-base font-black font-mono ${activePortalRep.meetsMinGroupsRule ? 'text-teal-300' : 'text-amber-400'}`}>
+                      {activePortalRep.qualifiedGroupsCount} / {activeConfig.groupRules.length}
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-900 border border-emerald-500/40 bg-emerald-950/20 p-4 rounded-2xl">
+                    <span className="text-xs text-emerald-300 block font-bold mb-1">صافي العمولات المستحقة</span>
+                    <span className="text-lg font-black text-emerald-400 font-mono">
+                      {formatNum(activePortalRep.grandTotalCommission)} ر.س
+                    </span>
+                  </div>
+                </div>
+
+                {/* Groups table for rep */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+                  <div className="p-3.5 border-b border-slate-800 flex justify-between items-center">
+                    <h4 className="font-bold text-xs text-white">تفاصيل ومستهدفات الأصناف</h4>
+                    <span className="text-[11px] text-slate-400">شرط الصنف: &ge; 70%</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-right text-slate-200">
+                      <thead className="bg-slate-950 text-slate-400 font-bold border-b border-slate-800 text-[11px]">
+                        <tr>
+                          <th className="py-2.5 px-3">المجموعة</th>
+                          <th className="py-2.5 px-3">الهدف</th>
+                          <th className="py-2.5 px-3">المحقق</th>
+                          <th className="py-2.5 px-3">النسبة%</th>
+                          <th className="py-2.5 px-3 text-center">الحالة</th>
+                          <th className="py-2.5 px-3">العمولة</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800 font-mono">
+                        {activePortalRep.detailedGroups.map((g, idx) => (
+                          <tr key={idx} className={g.isQualified ? 'bg-emerald-950/10' : ''}>
+                            <td className="py-2.5 px-3 font-sans font-bold text-white flex items-center gap-1.5">
+                              <span>{g.name}</span>
+                              <span className="text-[10px] text-slate-500 font-mono">({g.code})</span>
+                            </td>
+                            <td className="py-2.5 px-3 text-slate-300">{formatNum(g.target)}</td>
+                            <td className={`py-2.5 px-3 font-bold ${g.sales < 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                              {formatNum(g.sales)}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <span className={g.grpPct >= g.thresholdPct ? 'text-emerald-400 font-bold' : 'text-slate-400'}>
+                                {g.grpPct.toFixed(0)}%
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-center font-sans">
+                              {g.isQualified ? (
+                                <span className="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded text-[10px] font-bold">محققة</span>
+                              ) : (
+                                <span className="text-slate-500 text-[10px]">متبقي {formatNum(g.remainingToThreshold)}</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 font-bold text-amber-300">
+                              {activePortalRep.isFullyEligible && g.isQualified ? `${g.commValue} ر.س` : <span className="text-slate-600 font-normal">0</span>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {}
+            {activeTab === 'calculator' && (
+              <div className="space-y-6 max-w-5xl mx-auto">
+                <div className="bg-slate-900 border border-amber-500/30 p-5 rounded-3xl shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-base font-black text-white flex items-center gap-2">
+                      <i className="fa-solid fa-wand-magic-sparkles text-amber-400"></i>
+                      حاسبة المحاكاة الذكية ("كيف تفك عمولتك المحجوبة؟")
+                    </h3>
+                    <p className="text-xs text-amber-200/80 mt-0.5">
+                      أدخل مبيعات افتراضية إضافية للأصناف المتبقية لتعرف بالضبط كم تحتاج لتأهيل عمولتك وصرفها فورياً!
+                    </p>
+                  </div>
+
+                  {currentUser.role !== 'rep' && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-300 font-semibold">المندوب:</span>
+                      <select
+                        value={simulatedRepId}
+                        onChange={(e) => { setSimulatedRepId(parseInt(e.target.value)); setSimulatedGroupSales({}); }}
+                        className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white font-bold"
+                      >
+                        {authorizedReps.map(r => (
+                          <option key={r.id} value={r.id}>{r.name} (#{r.id})</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                {simulatedRep && (
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="lg:col-span-2 bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
+                      <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                        <h4 className="font-bold text-sm text-white">إضافة مبيعات تجريبية للأصناف ({activeConfig.periodShort})</h4>
+                        <button onClick={() => setSimulatedGroupSales({})} className="text-xs text-rose-400 hover:underline">
+                          إعادة ضبط المحاكاة
+                        </button>
+                      </div>
+
+                      <div className="space-y-2.5 max-h-[55vh] overflow-y-auto pr-1">
+                        {simulatedRep.simGroups.map((grp, idx) => (
+                          <div key={idx} className="bg-slate-950 p-2.5 rounded-xl border border-slate-800/80 flex items-center justify-between text-xs">
+                            <div className="flex-1 max-w-[200px]">
+                              <span className="font-bold text-white block truncate">{grp.name}</span>
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                هدف: {formatNum(grp.target)} | حالي: {formatNum(grp.sales)} ({grp.grpPct.toFixed(0)}%)
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-2 font-mono">
+                              <span className="text-[11px] text-slate-400">إضافة (+):</span>
+                              <input
+                                type="number"
+                                placeholder="0"
+                                value={simulatedGroupSales[idx] || ''}
+                                onChange={(e) => setSimulatedGroupSales(prev => ({ ...prev, [idx]: e.target.value }))}
+                                className="w-24 bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-center text-emerald-400 font-bold text-xs"
+                              />
+                              <span className={`text-[11px] px-2 py-0.5 rounded font-sans font-bold ${grp.isQual ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-500'}`}>
+                                {grp.isQual ? 'محققة' : 'غير محققة'}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4 flex flex-col justify-between">
+                      <div className="space-y-4">
+                        <h4 className="font-black text-sm text-white border-b border-slate-800 pb-2.5">
+                          نتيجة المحاكاة الفورية: {simulatedRep.base.name}
+                        </h4>
+
+                        <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-2 text-xs font-mono">
+                          <div className="flex justify-between">
+                            <span className="text-slate-400 font-sans">المبيعات الإضافية:</span>
+                            <span className="text-white font-bold">+{formatNum(simulatedRep.addedSalesTotal)} ر.س</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-400 font-sans">إجمالي المبيعات الجديدة:</span>
+                            <span className="text-emerald-400 font-bold">{formatNum(simulatedRep.simGenSales)} ر.س</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-400 font-sans">نسبة الهدف العام:</span>
+                            <span className={`font-bold ${simulatedRep.simMeetsGen ? 'text-emerald-400' : 'text-rose-400'}`}>
+                              {simulatedRep.simGenPct.toFixed(1)}% (المطلوب {activeConfig.generalThresholdPct}%)
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-400 font-sans">المجموعات المحققة:</span>
+                            <span className={`font-bold ${simulatedRep.simMeetsGroups ? 'text-teal-300' : 'text-amber-400'}`}>
+                              {simulatedRep.newlyQualifiedGroups} من {activeConfig.minGroupsRequired} مطلوبة
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className={`p-4 rounded-2xl border text-center space-y-1 ${
+                          simulatedRep.simFullyEligible
+                            ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-300'
+                            : 'bg-rose-950/20 border-rose-500/30 text-rose-300'
+                        }`}>
+                          <span className="text-xs font-bold block">
+                            {simulatedRep.simFullyEligible ? 'تهانينا! اكتملت الشروط وانفكت العمولة 🎉' : 'ما زالت العمولة محجوبة ⚠️'}
+                          </span>
+                          <span className="text-2xl font-black font-mono block">
+                            {formatNum(simulatedRep.simGrandCommission)} <span className="text-xs font-sans">ر.س</span>
+                          </span>
+                          <span className="text-[10px] text-slate-400 block">
+                            العمولة الحالية: {formatNum(simulatedRep.base.grandTotalCommission)} ر.س
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+          </main>
+
+          {}
+          {isManagingGroups && (
+            <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto no-print">
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-3xl w-full p-6 shadow-2xl space-y-5 my-8">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                  <div>
+                    <h3 className="text-base font-black text-white flex items-center gap-2">
+                      <i className="fa-solid fa-cubes-stacked text-amber-400"></i>
+                      إدارة وتخصيص المجموعات والأصناف السلعية ({activeConfig.periodShort})
+                    </h3>
+                    <p className="text-xs text-slate-400">أضف مجموعات جديدة، عدل قيم العمولات، أو احذف أي صنف بمرونة تامة.</p>
+                  </div>
+                  <button onClick={() => setIsManagingGroups(false)} className="text-slate-400 hover:text-white">
+                    <i className="fa-solid fa-xmark text-lg"></i>
+                  </button>
+                </div>
+
+                {/* Add Group Form */}
+                <form onSubmit={handleAddNewGroup} className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
+                  <span className="text-xs font-bold text-white block">إضافة مجموعة سلعية جديدة:</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-xs">
+                    <input
+                      type="text"
+                      placeholder="اسم المجموعة (مثلاً: عصير نكتار)..."
+                      value={newGroupForm.name}
+                      onChange={(e) => setNewGroupForm(prev => ({ ...prev, name: e.target.value }))}
+                      className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold"
+                      required
+                    />
+                    <input
+                      type="text"
+                      placeholder="كود الصنف (مثلاً: 502)..."
+                      value={newGroupForm.code}
+                      onChange={(e) => setNewGroupForm(prev => ({ ...prev, code: e.target.value }))}
+                      className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono"
+                    />
+                    <input
+                      type="number"
+                      placeholder="قيمة العمولة (ر.س)..."
+                      value={newGroupForm.commValue}
+                      onChange={(e) => setNewGroupForm(prev => ({ ...prev, commValue: e.target.value }))}
+                      className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono"
+                      required
+                    />
+                    <button
+                      type="submit"
+                      className="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black px-4 py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow"
+                    >
+                      <i className="fa-solid fa-plus"></i> إضافة المجموعة
+                    </button>
+                  </div>
+                </form>
+
+                {/* Existing Groups List */}
+                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                  {activeConfig.groupRules.map((rule, idx) => (
+                    <div key={rule.id || idx} className="bg-slate-950 p-3 rounded-xl border border-slate-800/80 flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-3">
+                        <span className="w-6 h-6 rounded-lg bg-slate-900 text-slate-400 flex items-center justify-center font-mono text-[11px] font-bold">
+                          {idx + 1}
+                        </span>
+                        <div>
+                          <span className="font-black text-white">{rule.name}</span>
+                          <span className="text-[10px] text-slate-400 block font-mono">كود: {rule.code || '-'} | عمولة: {rule.commValue} ر.س | العتبة: {rule.thresholdPct}%</span>
+                        </div>
+                      </div>
+
+                      {currentUser.role === 'admin' && (
+                        <button
+                          onClick={() => handleDeleteGroup(idx, rule.name)}
+                          className="text-rose-400 hover:bg-rose-950/60 p-2 rounded-lg transition-colors"
+                          title="حذف هذا الصنف"
+                        >
+                          <i className="fa-solid fa-trash-can"></i>
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex justify-end pt-2 border-t border-slate-800">
+                  <button onClick={() => setIsManagingGroups(false)} className="bg-slate-800 text-slate-200 px-5 py-2 rounded-xl text-xs font-bold">
+                    إغلاق
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {}
+          {isManagingUsers && currentUser.role === 'admin' && (
+            <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto no-print">
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-4xl w-full p-6 shadow-2xl space-y-5 my-8">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                  <div>
+                    <h3 className="text-base font-black text-white flex items-center gap-2">
+                      <i className="fa-solid fa-users-gear text-purple-400"></i>
+                      إدارة المستخدمين، كلمات المرور وتوزيع المندوبين على المشرفين
+                    </h3>
+                    <p className="text-xs text-slate-400">تحكم كامل في حساب كل مندوب ومشرف، وتحديد من يُشرف على من.</p>
+                  </div>
+                  <button onClick={() => setIsManagingUsers(false)} className="text-slate-400 hover:text-white">
+                    <i className="fa-solid fa-xmark text-lg"></i>
+                  </button>
+                </div>
+
+                {/* Add New User Form */}
+                <form onSubmit={handleAddNewUser} className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
+                  <span className="text-xs font-bold text-white block">إضافة مستخدم أو مندوب جديد:</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 text-xs">
+                    <input
+                      type="text"
+                      placeholder="اسم الموظف..."
+                      value={newUserForm.name}
+                      onChange={(e) => setNewUserForm(prev => ({ ...prev, name: e.target.value }))}
+                      className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold"
+                      required
+                    />
+                    <input
+                      type="text"
+                      placeholder="اسم المستخدم..."
+                      value={newUserForm.username}
+                      onChange={(e) => setNewUserForm(prev => ({ ...prev, username: e.target.value }))}
+                      className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono"
+                      required
+                    />
+                    <input
+                      type="password"
+                      placeholder="كلمة المرور..."
+                      value={newUserForm.password}
+                      onChange={(e) => setNewUserForm(prev => ({ ...prev, password: e.target.value }))}
+                      className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono"
+                      required
+                    />
+                    <select
+                      value={newUserForm.role}
+                      onChange={(e) => setNewUserForm(prev => ({ ...prev, role: e.target.value }))}
+                      className="bg-slate-900 border border-slate-700 rounded-xl px-2 py-2 text-white font-bold text-xs"
+                    >
+                      <option value="rep">مندوب مبيعات</option>
+                      <option value="supervisor">مشرف مبيعات</option>
+                      <option value="finance">محاسب ومدقق</option>
+                    </select>
+                    <button
+                      type="submit"
+                      className="bg-purple-600 hover:bg-purple-500 text-white font-black px-3 py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow"
+                    >
+                      <i className="fa-solid fa-user-plus"></i> إنشاء الحساب
+                    </button>
+                  </div>
+                </form>
+
+                {/* Supervisor & Reps Mapping Section */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold text-slate-300">قائمة المشرفين وتوزيع المندوبين التابعين لهم:</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {usersList.filter(u => u.role === 'supervisor').map(superUser => (
+                      <div key={superUser.username} className="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-2">
+                        <div className="flex justify-between items-center border-b border-slate-800 pb-1.5">
+                          <span className="font-bold text-purple-300 text-xs">{superUser.name}</span>
+                          <span className="text-[10px] text-slate-500 font-mono">@{superUser.username}</span>
+                        </div>
+                        <span className="text-[10px] text-slate-400 block font-semibold">المندوبون التابعون له:</span>
+                        <div className="space-y-1 max-h-36 overflow-y-auto text-[11px]">
+                          {processedReps.map(rep => {
+                            const isAssigned = (superUser.supervisedRepIds || []).includes(rep.id);
+                            return (
+                              <label key={rep.id} className="flex items-center gap-1.5 cursor-pointer hover:text-white text-slate-400">
+                                <input
+                                  type="checkbox"
+                                  checked={isAssigned}
+                                  onChange={() => handleAssignRepToSupervisor(superUser.username, rep.id)}
+                                  className="accent-purple-500 rounded"
+                                />
+                                <span>{rep.name} (#{rep.id})</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Users List & Password Reset */}
+                <div className="space-y-2 border-t border-slate-800 pt-3">
+                  <h4 className="text-xs font-bold text-slate-300">كافة المستخدمين وتعديل كلمات المرور:</h4>
+                  <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+                    {usersList.map(u => (
+                      <div key={u.username} className="bg-slate-950 p-2 rounded-xl border border-slate-800/80 flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-white">{u.name}</span>
+                          <span className="text-[10px] text-slate-500 font-mono">(@{u.username})</span>
+                          <span className="text-[10px] bg-slate-900 px-2 py-0.5 rounded text-emerald-400 font-bold">{u.role}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            placeholder="كلمة المرور..."
+                            defaultValue={u.password}
+                            id={`pass-input-${u.username}`}
+                            className="w-24 bg-slate-900 border border-slate-700 rounded-lg p-1 text-center text-white text-[11px] font-mono"
+                          />
+                          <button
+                            onClick={() => {
+                              const el = document.getElementById(`pass-input-${u.username}`);
+                              if (el) handleUpdateUserPassword(u.username, el.value);
+                            }}
+                            className="bg-slate-800 hover:bg-slate-700 text-teal-300 px-2.5 py-1 rounded-lg text-[10px] font-bold"
+                          >
+                            تحديث
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-2 border-t border-slate-800">
+                  <button onClick={() => setIsManagingUsers(false)} className="bg-slate-800 text-slate-200 px-5 py-2 rounded-xl text-xs font-bold">
+                    إغلاق
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {}
+          {editingRep && (
+            <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto no-print">
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-4 my-8">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                  <div>
+                    <h3 className="text-base font-black text-white flex items-center gap-2">
+                      تعديل أهداف المندوب سحابياً: <span className="text-emerald-400">{editingRep.name}</span>
+                    </h3>
+                    <span className="text-xs text-slate-400">رقم #{editingRep.id} | الفرع: {editingRep.branchName}</span>
+                  </div>
+                  <button onClick={() => setEditingRep(null)} className="text-slate-400 hover:text-white">
+                    <i className="fa-solid fa-xmark text-lg"></i>
+                  </button>
+                </div>
+
+                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 flex items-center justify-between">
+                  <span className="text-xs text-slate-300 font-bold">المستهدف العام للمندوب (ر.س):</span>
+                  <input
+                    type="number"
+                    id="modal-gen-target"
+                    defaultValue={editingRep.generalTarget}
+                    className="w-36 bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-center text-emerald-400 font-bold text-xs"
+                  />
+                </div>
+
+                <div className="max-h-72 overflow-y-auto space-y-2 border border-slate-800 rounded-xl p-2 bg-slate-950/60">
+                  {activeConfig.groupRules.map((rule, idx) => {
+                    const grp = (editingRep.groups && editingRep.groups[idx]) ? editingRep.groups[idx] : { target: 0, sales: 0 };
+                    return (
+                      <div key={idx} className="flex items-center justify-between text-xs p-2 bg-slate-950 rounded-lg border border-slate-800/80">
+                        <span className="font-bold text-slate-300 truncate max-w-[220px]">{rule.name}:</span>
+                        <div className="flex items-center gap-2 font-mono">
+                          <span className="text-[10px] text-slate-500">محقق: {formatNum(grp.sales)}</span>
+                          <input
+                            type="number"
+                            id={`grp-target-input-${idx}`}
+                            defaultValue={grp.target}
+                            className="w-24 bg-slate-900 border border-slate-700 rounded-md p-1 text-center text-white font-bold text-xs"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+                  <button
+                    onClick={() => {
+                      const newGenTarget = parseFloat(document.getElementById('modal-gen-target').value) || 0;
+                      const newGroupTargets = {};
+                      activeConfig.groupRules.forEach((_, idx) => {
+                        const el = document.getElementById(`grp-target-input-${idx}`);
+                        if (el) newGroupTargets[idx] = parseFloat(el.value) || 0;
+                      });
+                      handleSaveRepTargets(editingRep.id, newGroupTargets, newGenTarget);
+                    }}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black text-xs px-5 py-2.5 rounded-xl shadow transition-all flex items-center gap-1.5"
+                  >
+                    <i className="fa-solid fa-cloud-arrow-up"></i> حفظ وتعميم سحابياً
+                  </button>
+                  <button onClick={() => setEditingRep(null)} className="bg-slate-800 text-slate-300 text-xs font-bold px-4 py-2.5 rounded-xl">
+                    إلغاء
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {}
+          {showInstallHelp && (
+            <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur flex items-center justify-center p-4 overflow-y-auto no-print">
+              <div className="bg-slate-900 border border-emerald-500/40 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                  <div className="flex items-center gap-2">
+                    <i className="fa-brands fa-android text-2xl text-emerald-400"></i>
+                    <h3 className="text-base font-black text-white">تشغيل المنظومة كتطبيق أندرويد (Android App)</h3>
+                  </div>
+                  <button onClick={() => setShowInstallHelp(false)} className="text-slate-400 hover:text-white">
+                    <i className="fa-solid fa-xmark text-lg"></i>
+                  </button>
+                </div>
+
+                <div className="space-y-3 text-xs text-slate-300">
+                  <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-1.5">
+                    <span className="font-bold text-emerald-400 block text-sm">الطريقة الأولى: التثبيت الفوري PWA (بدون متجر وبدون تحميل)</span>
+                    <p className="text-slate-400 text-[11px] leading-relaxed">
+                      1. افتح رابط المنظومة على متصفح Chrome في أي هاتف أندرويد.<br/>
+                      2. اضغط على خيارات المتصفح (النقاط الثلاث بالأعلى <strong>⋮</strong>).<br/>
+                      3. اختر <strong>"تثبيت التطبيق"</strong> أو <strong>"إضافة إلى الشاشة الرئيسية (Install App)"</strong>.<br/>
+                      4. سيتم تثبيت المنظومة كأيقونة تطبيق رسمي على شاشة الهاتف، تفتح ملء الشاشة بدون شريط متصفح وبسرعة فائقة.
+                    </p>
+                  </div>
+
+                  <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-1.5">
+                    <span className="font-bold text-amber-400 block text-sm">الطريقة الثانية: استخراج ملف APK رسمي</span>
+                    <p className="text-slate-400 text-[11px] leading-relaxed">
+                      النظام مبرمج وفق معايير تطبيقات الويب التقدمية (PWA Ready). يمكن تحويل هذا الملف مباشرة إلى حزمة أندرويد <strong>(.apk)</strong> قابلة للإرسال عبر واتساب أو النشر على متجر Google Play عبر أداة <strong>PWABuilder.com</strong> أو <strong>Capacitor</strong> في ثوانٍ معدودة.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-2 border-t border-slate-800">
+                  <button onClick={() => setShowInstallHelp(false)} className="bg-emerald-600 text-slate-950 font-black px-5 py-2 rounded-xl text-xs">
+                    فهمت ذلك، حسناً
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {}
+          {voucherPrintRep && (
+            <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur flex items-center justify-center p-4 overflow-y-auto">
+              <div className="bg-white text-slate-900 rounded-2xl max-w-2xl w-full p-6 shadow-2xl relative space-y-4 printable-card my-8">
+                <div className="flex justify-between items-center border-b pb-3 no-print">
+                  <span className="text-xs font-bold text-slate-500">سند استحقاق عمولة مبيعات رسمي</span>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => window.print()} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+                      <i className="fa-solid fa-print"></i> طباعة السند
+                    </button>
+                    <button onClick={() => setVoucherPrintRep(null)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-lg">
+                      إغلاق
+                    </button>
+                  </div>
+                </div>
+
+                <div className="text-center border-b-2 border-slate-900 pb-3">
+                  <h3 className="text-lg font-black text-slate-950">إشعار استحقاق وصرف عمولة مبيعات شهرية</h3>
+                  <p className="text-xs text-slate-600 mt-0.5">إدارة المبيعات والمحاسبة المالية | الفترة: {activeConfig.periodName}</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-3 rounded-lg border border-slate-200 font-sans">
+                  <div><strong>اسم المندوب:</strong> {voucherPrintRep.name}</div>
+                  <div><strong>رقم المندوب:</strong> #{voucherPrintRep.id}</div>
+                  <div><strong>الفرع التابع له:</strong> {voucherPrintRep.branchName}</div>
+                  <div><strong>مشرف الفرع:</strong> {voucherPrintRep.supervisorName}</div>
+                  <div><strong>الهدف العام:</strong> {formatNum(voucherPrintRep.generalTarget)} ر.س</div>
+                  <div><strong>المبيعات العامة:</strong> {formatNum(voucherPrintRep.generalSales)} ر.س ({voucherPrintRep.genPct.toFixed(1)}%)</div>
+                  <div><strong>المجموعات المحققة:</strong> {voucherPrintRep.qualifiedGroupsCount} من أصل {activeConfig.groupRules.length}</div>
+                  <div><strong>حالة الصرف:</strong> {voucherPrintRep.isFullyEligible ? 'مستحقة بالكامل للصرف ✅' : 'محجوبة لعدم اكتمال الشروط ⚠️'}</div>
+                </div>
+
+                <div className="border border-slate-200 rounded-lg p-3 bg-slate-50 space-y-1 text-xs">
+                  <div className="flex justify-between">
+                    <span>عمولات المجموعات السلعية:</span>
+                    <span className="font-bold">{formatNum(voucherPrintRep.totalGroupCommissionEarned)} ر.س</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>عمولة الهدف العام المستقلة:</span>
+                    <span className="font-bold">{formatNum(voucherPrintRep.generalTargetCommEarned)} ر.س</span>
+                  </div>
+                  <div className="flex justify-between text-base font-black border-t border-slate-300 pt-1.5 text-slate-950">
+                    <span>صافي المبلغ المستحق للصرف:</span>
+                    <span className="text-emerald-700">{formatNum(voucherPrintRep.grandTotalCommission)} ر.س</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4 pt-6 text-center text-xs font-bold text-slate-700">
+                  <div className="border-t border-slate-400 pt-1">إعداد مشرف الفرع: {voucherPrintRep.supervisorName}</div>
+                  <div className="border-t border-slate-400 pt-1">مراجعة المحاسب المالي</div>
+                  <div className="border-t border-slate-400 pt-1">اعتماد المدير العام</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
